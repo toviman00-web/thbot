@@ -1,44 +1,72 @@
-let tg = window.Telegram.WebApp;
-tg.expand();
+const { Telegraf } = require("telegraf");
+const express = require("express");
 
-function tap() {
-  const initData = tg.initData; // 👈 ОЦЕ ГОЛОВНЕ
+const bot = new Telegraf(process.env.BOT_TOKEN);
+const app = express();
 
-  fetch("/tap", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      initData: initData
-    })
-  })
-  .then(r => r.json())
-  .then(data => {
-    document.getElementById("coins").innerText =
-      data.coins.toFixed(2) + " PV";
-  })
-  .catch(err => {
-    alert("error");
-    console.log(err);
-  });
-}
 app.use(express.json());
 
+/* TAP API */
 app.post("/tap", (req, res) => {
   const initData = req.body.initData;
 
-  // беремо user з Telegram initData
   const params = new URLSearchParams(initData);
   const user = JSON.parse(params.get("user"));
 
-  if (!user || !user.id) {
-    return res.json({ error: "No Telegram user" });
+  if (!user?.id) {
+    return res.json({ error: "No user" });
   }
 
-  const id = user.id;
-
-  addCoins(id, 0.01, (userData) => {
-    res.json(userData);
+  res.json({
+    id: user.id,
+    coins: Math.random() * 10
   });
 });
+
+/* WEB */
+app.get("/", (req, res) => {
+  res.send(`
+<h1>Pv App</h1>
+<button onclick="tap()">TAP</button>
+<div id="coins">0</div>
+
+<script>
+let tg = window.Telegram.WebApp;
+tg.expand();
+
+function tap(){
+  fetch('/tap', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ initData: tg.initData })
+  })
+  .then(r=>r.json())
+  .then(d=>{
+    document.getElementById('coins').innerText = d.coins;
+  });
+}
+</script>
+  `);
+});
+
+/* BOT */
+bot.start((ctx) => {
+  ctx.reply("Pv App", {
+    reply_markup: {
+      keyboard: [[
+        {
+          text: "Open App",
+          web_app: {
+            url: process.env.WEBAPP_URL
+          }
+        }
+      ]]
+    }
+  });
+});
+
+bot.launch();
+
+app.listen(process.env.PORT || 3000);
+
+console.log("STARTED");
