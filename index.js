@@ -68,3 +68,10 @@ app.get("/", (req, res) => {
   `);
 });
 console.log("BOT TOKEN:8750192272:AAEV20ZeZBj88fEfc9K9_wSh_nErYXErTRY", process.env.BOT_TOKEN);
+bot.catch((err) => {
+  console.log("BOT ERROR:", err);
+});
+console.log("TOKEN:", process.env.BOT_TOKEN);
+console.log("BOT STARTING...");
+bot.launch();
+console.log("BOT STARTED");
