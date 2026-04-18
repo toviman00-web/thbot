@@ -8,7 +8,7 @@ const app = express();
 
 app.use(express.json());
 
-/* ===== DB (СТАБІЛЬНА) ===== */
+/* ===== DB ===== */
 const db = new sqlite3.Database(path.join(__dirname, "data.db"));
 
 db.serialize(() => {
@@ -20,56 +20,46 @@ db.serialize(() => {
       skin TEXT DEFAULT 'default'
     )
   `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS promos (
+      user_id INTEGER,
+      code TEXT
+    )
+  `);
 });
 
 /* ===== USER ===== */
 function getUser(id, cb){
   db.get("SELECT * FROM users WHERE id = ?", [id], (err, row) => {
-
     if(row) return cb(row);
 
     db.run(
       "INSERT INTO users (id, coins, skin) VALUES (?, 0, 'default')",
       [id],
-      () => {
-        cb({
-          id,
-          coins: 0,
-          skin: "default"
-        });
-      }
+      () => cb({ id, coins: 0, skin: "default" })
     );
-
   });
 }
 
-/* ===== REF BONUS ===== */
-function addRefBonus(refId){
-  if(!refId) return;
-
+/* ===== ADD COINS ===== */
+function addCoins(id, amount, cb){
   db.run(
-    "UPDATE users SET coins = coins + 25 WHERE id = ?",
-    [refId]
-  );
-}
-
-/* ===== TAP ===== */
-function addCoins(id, cb){
-  db.run(
-    "UPDATE users SET coins = coins + 0.01 WHERE id = ?",
-    [id],
+    "UPDATE users SET coins = coins + ? WHERE id = ?",
+    [amount, id],
     () => getUser(id, cb)
   );
 }
 
-/* ===== API ===== */
+/* ===== TAP ===== */
 app.post("/tap", (req, res) => {
   const id = req.body.id;
   if(!id) return res.json({ error: "no id" });
 
-  addCoins(id, user => res.json(user));
+  addCoins(id, 0.01, user => res.json(user));
 });
 
+/* ===== PROFILE ===== */
 app.post("/profile", (req, res) => {
   const id = req.body.id;
   if(!id) return res.json({ error: "no id" });
@@ -77,12 +67,13 @@ app.post("/profile", (req, res) => {
   getUser(id, user => res.json(user));
 });
 
+/* ===== BUY SKIN ===== */
 app.post("/buy-skin", (req, res) => {
   const { id, skin } = req.body;
 
   const prices = {
     red: 10,
-    star: 20
+    star: 25
   };
 
   const price = prices[skin];
@@ -100,6 +91,40 @@ app.post("/buy-skin", (req, res) => {
   });
 });
 
+/* ===== PROMO CODE ===== */
+function usePromo(id, code, value, cb){
+  db.get(
+    "SELECT * FROM promos WHERE user_id = ? AND code = ?",
+    [id, code],
+    (err, row) => {
+      if(row) return cb({ error: "already used" });
+
+      db.run(
+        "INSERT INTO promos (user_id, code) VALUES (?, ?)",
+        [id, code]
+      );
+
+      addCoins(id, value, cb);
+    }
+  );
+}
+
+app.post("/promo", (req, res) => {
+  const { id, code } = req.body;
+  if(!id || !code) return res.json({ error: "no data" });
+
+  const promos = {
+    open: 50,
+    "1may": 10
+  };
+
+  const value = promos[code];
+
+  if(!value) return res.json({ error: "invalid code" });
+
+  usePromo(id, code, value, user => res.json(user));
+});
+
 /* ===== WEB APP ===== */
 app.get("/", (req, res) => {
   res.send(`
@@ -113,7 +138,7 @@ app.get("/", (req, res) => {
 body{
   margin:0;
   font-family:Arial;
-  background:linear-gradient(180deg,#141e30,#243b55);
+  background:linear-gradient(180deg,#0f2027,#203a43,#2c5364);
   color:white;
   text-align:center;
 }
@@ -133,6 +158,7 @@ body{
   font-weight:bold;
 }
 
+/* TAP */
 .tap{
   width:160px;
   height:160px;
@@ -153,6 +179,26 @@ body{
   transform:scale(0.9);
 }
 
+/* STAR SKIN */
+.star{
+  width:160px;
+  height:160px;
+  background:gold;
+  clip-path:polygon(
+    50% 0%,
+    61% 35%,
+    98% 35%,
+    68% 57%,
+    79% 91%,
+    50% 70%,
+    21% 91%,
+    32% 57%,
+    2% 35%,
+    39% 35%
+  );
+}
+
+/* PLUS */
 .plus{
   position:absolute;
   color:#00ff99;
@@ -164,12 +210,22 @@ body{
   100%{opacity:0; transform:translateY(-50px);}
 }
 
+/* MARKET */
 .card{
   background:rgba(255,255,255,0.1);
   padding:20px;
   border-radius:15px;
+  width:85%;
 }
 
+.shopItem{
+  background:rgba(255,255,255,0.1);
+  padding:10px;
+  margin:10px;
+  border-radius:10px;
+}
+
+/* MENU */
 .menu{
   position:fixed;
   bottom:0;
@@ -191,27 +247,44 @@ body{
 
 <body>
 
+<!-- HOME -->
 <div id="home" class="page active">
   <div class="coins" id="coins">0.00 PV</div>
-  <div class="tap" id="tapBtn">TAP</div>
+  <div id="tapBtn" class="tap">TAP</div>
 </div>
 
+<!-- PROFILE -->
 <div id="profile" class="page">
   <div class="card">
     <p id="pid">ID</p>
     <p id="pcoins">Balance</p>
+
+    <h3>Promo code</h3>
+    <input id="promo" placeholder="Enter code">
+    <button onclick="sendPromo()">Use</button>
   </div>
 </div>
 
+<!-- MARKET -->
 <div id="market" class="page">
   <div class="card">
     <h3>Market</h3>
-    <button onclick="buySkin('red')">🔴 Red Tap (10 PV)</button><br><br>
-    <button onclick="buySkin('star')">⭐ Star Tap (20 PV)</button><br><br>
+
+    <div class="shopItem">
+      🔴 Red Tap - 10 PV
+      <button onclick="buySkin('red')">Buy</button>
+    </div>
+
+    <div class="shopItem">
+      ⭐ Star Tap (SPECIAL) - 25 PV
+      <button onclick="buySkin('star')">Buy</button>
+    </div>
+
     <p id="skinInfo">Default skin</p>
   </div>
 </div>
 
+<!-- MENU -->
 <div class="menu">
   <div onclick="openPage('home')">Home</div>
   <div onclick="openPage('profile')">Profile</div>
@@ -227,6 +300,7 @@ function getId(){
   return tg.initDataUnsafe?.user?.id;
 }
 
+/* NAV */
 function openPage(id){
   document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
   document.getElementById(id).classList.add("active");
@@ -237,7 +311,7 @@ function openPage(id){
 /* TAP */
 document.getElementById("tapBtn").onclick = () => {
   const id = getId();
-  if(!id) return alert("NO USER");
+  if(!id) return;
 
   fetch("/tap", {
     method:"POST",
@@ -260,8 +334,6 @@ document.getElementById("tapBtn").onclick = () => {
 /* PROFILE */
 function loadProfile(){
   const id = getId();
-  if(!id) return;
-
   fetch("/profile", {
     method:"POST",
     headers:{"Content-Type":"application/json"},
@@ -278,7 +350,6 @@ function loadProfile(){
 /* SKINS */
 function buySkin(skin){
   const id = getId();
-  if(!id) return;
 
   fetch("/buy-skin", {
     method:"POST",
@@ -289,14 +360,30 @@ function buySkin(skin){
   .then(d=>{
     if(d.error) return alert(d.error);
 
-    document.getElementById("skinInfo").innerText =
-      "Selected: " + skin;
-
     if(skin === "red")
       document.getElementById("tapBtn").style.background = "red";
 
-    if(skin === "star")
-      document.getElementById("tapBtn").style.background = "gold";
+    if(skin === "star"){
+      document.getElementById("tapBtn").className = "tap star";
+    }
+  });
+}
+
+/* PROMO */
+function sendPromo(){
+  const id = getId();
+  const code = document.getElementById("promo").value;
+
+  fetch("/promo", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ id, code })
+  })
+  .then(r=>r.json())
+  .then(d=>{
+    if(d.error) return alert(d.error);
+    alert("Added!");
+    loadProfile();
   });
 }
 </script>
@@ -309,28 +396,21 @@ function buySkin(skin){
 /* ===== BOT ===== */
 bot.start((ctx) => {
   const userId = ctx.from.id;
-  const ref = ctx.startPayload;
-
-  getUser(userId, () => {
-    if(ref && ref != userId){
-      db.run("UPDATE users SET referrer = ? WHERE id = ?", [ref, userId]);
-      addRefBonus(ref);
-    }
-  });
-
   const link = `https://t.me/${ctx.botInfo.username}?start=${userId}`;
 
   ctx.reply(
 `🔥 Pv App
 
-👥 Referral link:
+👥 Referral:
 ${link}
 
-💰 Invite friends = +25 PV`,
+Codes:
+open = +50 PV
+1may = +10 PV`,
     {
       reply_markup: {
         inline_keyboard: [[
-          { text: "🎮 Open App", web_app: { url: process.env.WEBAPP_URL } }
+          { text: "Open App", web_app: { url: process.env.WEBAPP_URL } }
         ]]
       }
     }
@@ -344,5 +424,3 @@ bot.launch();
 app.listen(process.env.PORT || 3000, () => {
   console.log("Server started");
 });
-
-console.log("BOT STARTED");
