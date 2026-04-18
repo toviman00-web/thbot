@@ -1,29 +1,22 @@
 const { Telegraf } = require("telegraf");
 const express = require("express");
 const sqlite3 = require("sqlite3").verbose();
-const fs = require("fs");
+const path = require("path");
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const app = express();
 
 app.use(express.json());
 
-/* ===== FIX STORAGE PATH ===== */
-const DB_PATH = process.env.DATABASE_URL
-  ? process.env.DATABASE_URL
-  : "./data.db";
+/* ================= DB (НЕ СКИДАЄТЬСЯ) ================= */
+const db = new sqlite3.Database(path.join(__dirname, "data.db"));
 
-/* ===== DB INIT (SAFE) ===== */
-const db = new sqlite3.Database(DB_PATH);
-
-/* ===== CREATE TABLE ONLY ONCE ===== */
 db.serialize(() => {
   db.run(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY,
       coins REAL DEFAULT 0,
-      skin TEXT DEFAULT 'default',
-      referrer INTEGER DEFAULT NULL
+      skin TEXT DEFAULT 'default'
     )
   `);
 
@@ -35,7 +28,7 @@ db.serialize(() => {
   `);
 });
 
-/* ===== GET USER (NO RESET) ===== */
+/* ================= USER ================= */
 function getUser(id, cb){
   db.get("SELECT * FROM users WHERE id = ?", [id], (err, row) => {
     if(row) return cb(row);
@@ -48,7 +41,7 @@ function getUser(id, cb){
   });
 }
 
-/* ===== ADD COINS ===== */
+/* ================= COINS ================= */
 function addCoins(id, amount, cb){
   db.run(
     "UPDATE users SET coins = coins + ? WHERE id = ?",
@@ -57,7 +50,7 @@ function addCoins(id, amount, cb){
   );
 }
 
-/* ===== TAP ===== */
+/* ================= TAP ================= */
 app.post("/tap", (req, res) => {
   const id = req.body.id;
   if(!id) return res.json({ error: "no id" });
@@ -65,7 +58,7 @@ app.post("/tap", (req, res) => {
   addCoins(id, 0.01, user => res.json(user));
 });
 
-/* ===== PROFILE ===== */
+/* ================= PROFILE ================= */
 app.post("/profile", (req, res) => {
   const id = req.body.id;
   if(!id) return res.json({ error: "no id" });
@@ -73,7 +66,7 @@ app.post("/profile", (req, res) => {
   getUser(id, user => res.json(user));
 });
 
-/* ===== SKINS ===== */
+/* ================= SKINS ================= */
 app.post("/buy-skin", (req, res) => {
   const { id, skin } = req.body;
 
@@ -97,7 +90,7 @@ app.post("/buy-skin", (req, res) => {
   });
 });
 
-/* ===== PROMO (HIDDEN) ===== */
+/* ================= PROMO ================= */
 function usePromo(id, code, value, cb){
   db.get(
     "SELECT * FROM promos WHERE user_id = ? AND code = ?",
@@ -118,7 +111,6 @@ function usePromo(id, code, value, cb){
         [value, id],
         () => getUser(id, cb)
       );
-
     }
   );
 }
@@ -138,21 +130,243 @@ app.post("/promo", (req, res) => {
   usePromo(id, code, value, user => res.json(user));
 });
 
-/* ===== WEB APP ===== */
+/* ================= WEB APP ================= */
 app.get("/", (req, res) => {
-  res.send(`<!DOCTYPE html>
+  res.send(`
+<!DOCTYPE html>
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+<style>
+body{
+  margin:0;
+  font-family:Arial;
+  background:linear-gradient(180deg,#0f2027,#203a43,#2c5364);
+  color:white;
+  text-align:center;
+}
+
+.page{
+  display:none;
+  height:80vh;
+  justify-content:center;
+  align-items:center;
+  flex-direction:column;
+}
+
+.active{display:flex;}
+
+.coins{
+  font-size:36px;
+  font-weight:bold;
+}
+
+/* TAP */
+.tap{
+  width:160px;
+  height:160px;
+  background:white;
+  color:black;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:22px;
+  font-weight:bold;
+  border-radius:50%;
+  cursor:pointer;
+  position:relative;
+}
+
+.tap:active{ transform:scale(0.9); }
+
+/* STAR */
+.star{
+  width:160px;
+  height:160px;
+  background:gold;
+  clip-path:polygon(
+    50% 0%,
+    61% 35%,
+    98% 35%,
+    68% 57%,
+    79% 91%,
+    50% 70%,
+    21% 91%,
+    32% 57%,
+    2% 35%,
+    39% 35%
+  );
+}
+
+/* ANIMATION */
+.plus{
+  position:absolute;
+  color:#00ff99;
+  animation:up 0.6s forwards;
+}
+
+@keyframes up{
+  0%{opacity:1; transform:translateY(0);}
+  100%{opacity:0; transform:translateY(-50px);}
+}
+
+.card{
+  background:rgba(255,255,255,0.1);
+  padding:20px;
+  border-radius:15px;
+  width:85%;
+}
+
+.menu{
+  position:fixed;
+  bottom:0;
+  width:100%;
+  display:flex;
+  justify-content:space-around;
+  background:rgba(0,0,0,0.6);
+  padding:10px;
+}
+
+.menu div{
+  padding:10px;
+  border-radius:10px;
+  background:rgba(255,255,255,0.1);
+  cursor:pointer;
+}
+</style>
 </head>
+
 <body>
-<h1>Game loaded</h1>
+
+<div id="home" class="page active">
+  <div class="coins" id="coins">0.00 PV</div>
+  <div id="tapBtn" class="tap">TAP</div>
+</div>
+
+<div id="profile" class="page">
+  <div class="card">
+    <p id="pid">ID</p>
+    <p id="pcoins">Balance</p>
+
+    <input id="promo" placeholder="promo code">
+    <button onclick="sendPromo()">Apply</button>
+  </div>
+</div>
+
+<div id="market" class="page">
+  <div class="card">
+    <h3>Market</h3>
+
+    <button onclick="buySkin('red')">🔴 Red - 10 PV</button><br><br>
+    <button onclick="buySkin('star')">⭐ Star - 25 PV</button>
+  </div>
+</div>
+
+<div class="menu">
+  <div onclick="openPage('home')">Home</div>
+  <div onclick="openPage('profile')">Profile</div>
+  <div onclick="openPage('market')">Market</div>
+</div>
+
+<script>
+const tg = window.Telegram.WebApp;
+tg.ready();
+tg.expand();
+
+function id(){
+  return tg.initDataUnsafe?.user?.id;
+}
+
+/* NAV */
+function openPage(p){
+  document.querySelectorAll(".page").forEach(e=>e.classList.remove("active"));
+  document.getElementById(p).classList.add("active");
+  if(p==="profile") loadProfile();
+}
+
+/* TAP */
+document.getElementById("tapBtn").onclick = () => {
+  const userId = id();
+  if(!userId) return;
+
+  fetch("/tap", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ id: userId })
+  })
+  .then(r=>r.json())
+  .then(d=>{
+    document.getElementById("coins").innerText =
+      d.coins.toFixed(2) + " PV";
+
+    const plus = document.createElement("div");
+    plus.className = "plus";
+    plus.innerText = "+0.01";
+    document.getElementById("tapBtn").appendChild(plus);
+    setTimeout(()=>plus.remove(),600);
+  });
+};
+
+/* PROFILE */
+function loadProfile(){
+  fetch("/profile", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ id: id() })
+  })
+  .then(r=>r.json())
+  .then(d=>{
+    document.getElementById("pid").innerText = "ID: " + d.id;
+    document.getElementById("pcoins").innerText =
+      "Balance: " + d.coins.toFixed(2) + " PV";
+  });
+}
+
+/* SKINS */
+function buySkin(skin){
+  fetch("/buy-skin", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ id: id(), skin })
+  })
+  .then(r=>r.json())
+  .then(d=>{
+    if(d.error) return alert(d.error);
+
+    if(skin==="star")
+      document.getElementById("tapBtn").className="tap star";
+
+    if(skin==="red")
+      document.getElementById("tapBtn").style.background="red";
+  });
+}
+
+/* PROMO */
+function sendPromo(){
+  const code = document.getElementById("promo").value;
+
+  fetch("/promo", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ id: id(), code })
+  })
+  .then(r=>r.json())
+  .then(d=>{
+    if(d.error) return alert(d.error);
+    loadProfile();
+    alert("OK");
+  });
+}
+</script>
+
 </body>
-</html>`);
+</html>
+  `);
 });
 
-/* ===== BOT ===== */
+/* ================= BOT ================= */
 bot.start((ctx) => {
   const link = `https://t.me/${ctx.botInfo.username}?start=${ctx.from.id}`;
 
@@ -174,7 +388,7 @@ ${link}`,
 bot.telegram.deleteWebhook();
 bot.launch();
 
-/* ===== SERVER ===== */
+/* ================= SERVER ================= */
 app.listen(process.env.PORT || 3000, () => {
-  console.log("Server running");
+  console.log("Server started");
 });
