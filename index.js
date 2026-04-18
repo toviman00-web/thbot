@@ -199,7 +199,7 @@ bot.start((ctx) => {
         {
           text: "🎮 Open Game",
           web_app: {
-            url: process.env.WEBAPP_URL
+            url: "https://thbot-production.up.railway.app/"
           }
         }
       ]],
