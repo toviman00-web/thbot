@@ -14,7 +14,8 @@ db.run(`
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY,
   coins REAL DEFAULT 0,
-  referrer INTEGER DEFAULT NULL
+  referrer INTEGER DEFAULT NULL,
+  skin TEXT DEFAULT 'default'
 )
 `);
 
@@ -23,7 +24,7 @@ function getUser(id, cb){
   db.get("SELECT * FROM users WHERE id = ?", [id], (err, row) => {
     if(!row){
       db.run("INSERT INTO users (id, coins) VALUES (?, 0)", [id]);
-      return cb({ id, coins: 0, referrer: null });
+      return cb({ id, coins: 0, skin: "default" });
     }
     cb(row);
   });
@@ -33,10 +34,7 @@ function getUser(id, cb){
 function addRefBonus(refId){
   if(!refId) return;
 
-  db.run(
-    "UPDATE users SET coins = coins + 25 WHERE id = ?",
-    [refId]
-  );
+  db.run("UPDATE users SET coins = coins + 25 WHERE id = ?", [refId]);
 }
 
 /* ===== TAP ===== */
@@ -48,7 +46,7 @@ function addCoins(id, cb){
   );
 }
 
-/* ===== API ===== */
+/* ===== TAP API ===== */
 app.post("/tap", (req, res) => {
   const id = req.body.id;
   if(!id) return res.json({ error: "no id" });
@@ -56,6 +54,7 @@ app.post("/tap", (req, res) => {
   addCoins(id, user => res.json(user));
 });
 
+/* ===== PROFILE API ===== */
 app.post("/profile", (req, res) => {
   const id = req.body.id;
   if(!id) return res.json({ error: "no id" });
@@ -63,7 +62,31 @@ app.post("/profile", (req, res) => {
   getUser(id, user => res.json(user));
 });
 
-/* ===== WEB ===== */
+/* ===== BUY SKIN ===== */
+app.post("/buy-skin", (req, res) => {
+  const { id, skin } = req.body;
+
+  const prices = {
+    red: 10,
+    star: 20
+  };
+
+  const price = prices[skin];
+  if(!price) return res.json({ error: "invalid skin" });
+
+  db.get("SELECT coins FROM users WHERE id = ?", [id], (err, user) => {
+    if(!user || user.coins < price)
+      return res.json({ error: "not enough coins" });
+
+    db.run(
+      "UPDATE users SET coins = coins - ?, skin = ? WHERE id = ?",
+      [price, skin, id],
+      () => res.json({ ok: true })
+    );
+  });
+});
+
+/* ===== WEB APP ===== */
 app.get("/", (req, res) => {
   res.send(`
 <!DOCTYPE html>
@@ -93,7 +116,7 @@ body{
 
 .coins{
   font-size:36px;
-  margin:10px;
+  font-weight:bold;
 }
 
 .tap{
@@ -119,13 +142,12 @@ body{
 .plus{
   position:absolute;
   color:#00ff99;
-  font-size:20px;
-  animation:floatUp 0.6s ease-out forwards;
+  animation:up 0.6s forwards;
 }
 
-@keyframes floatUp{
+@keyframes up{
   0%{opacity:1; transform:translateY(0);}
-  100%{opacity:0; transform:translateY(-60px);}
+  100%{opacity:0; transform:translateY(-50px);}
 }
 
 .card{
@@ -173,7 +195,11 @@ body{
 <div id="market" class="page">
   <div class="card">
     <h3>Market</h3>
-    <p>Skins coming soon</p>
+
+    <button onclick="buySkin('red')">🔴 Red Tap (10 PV)</button><br><br>
+    <button onclick="buySkin('star')">⭐ Star Tap (20 PV)</button><br><br>
+
+    <p id="skinInfo">Default skin</p>
   </div>
 </div>
 
@@ -201,8 +227,8 @@ function openPage(id){
   if(id === "profile") loadProfile();
 }
 
-/* TAP + ANIMATION */
-document.getElementById("tapBtn").onclick = (e) => {
+/* TAP */
+document.getElementById("tapBtn").onclick = () => {
   const id = getId();
   if(!id) return alert("NO USER");
 
@@ -216,13 +242,11 @@ document.getElementById("tapBtn").onclick = (e) => {
     document.getElementById("coins").innerText =
       d.coins.toFixed(2) + " PV";
 
-    /* +1 ANIMATION */
     const plus = document.createElement("div");
     plus.className = "plus";
     plus.innerText = "+0.01";
     document.getElementById("tapBtn").appendChild(plus);
-
-    setTimeout(()=>plus.remove(), 600);
+    setTimeout(()=>plus.remove(),600);
   });
 };
 
@@ -243,6 +267,31 @@ function loadProfile(){
       "Balance: " + d.coins.toFixed(2) + " PV";
   });
 }
+
+/* SKINS */
+function buySkin(skin){
+  const id = getId();
+  if(!id) return;
+
+  fetch("/buy-skin", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ id, skin })
+  })
+  .then(r=>r.json())
+  .then(d=>{
+    if(d.error) return alert(d.error);
+
+    document.getElementById("skinInfo").innerText =
+      "Selected: " + skin;
+
+    if(skin === "red")
+      document.getElementById("tapBtn").style.background = "red";
+
+    if(skin === "star")
+      document.getElementById("tapBtn").style.background = "gold";
+  });
+}
 </script>
 
 </body>
@@ -250,29 +299,35 @@ function loadProfile(){
   `);
 });
 
-/* ===== BOT + REF ===== */
+/* ===== BOT ===== */
 bot.start((ctx) => {
-  const ref = ctx.startPayload; // ID реферала
-
   const userId = ctx.from.id;
+  const ref = ctx.startPayload;
 
-  getUser(userId, (user) => {
+  getUser(userId, () => {
     if(ref && ref != userId){
       db.run("UPDATE users SET referrer = ? WHERE id = ?", [ref, userId]);
       addRefBonus(ref);
     }
   });
 
-  ctx.reply("🔥 Pv App", {
-    reply_markup: {
-      inline_keyboard: [[
-        {
-          text: "🎮 Open App",
-          web_app: { url: process.env.WEBAPP_URL }
-        }
-      ]]
+  const link = `https://t.me/${ctx.botInfo.username}?start=${userId}`;
+
+  ctx.reply(
+`🔥 Pv App
+
+👥 Referral link:
+${link}
+
+💰 Invite friends = +25 PV`,
+    {
+      reply_markup: {
+        inline_keyboard: [[
+          { text: "🎮 Open App", web_app: { url: process.env.WEBAPP_URL } }
+        ]]
+      }
     }
-  });
+  );
 });
 
 bot.telegram.deleteWebhook();
