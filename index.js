@@ -1,15 +1,30 @@
-function tap() {
-  let tg = window.Telegram?.WebApp;
+const { Telegraf } = require("telegraf");
 
-  if (!tg || !tg.initDataUnsafe?.user?.id) {
-    alert("Відкрий через Telegram, не браузер");
-    return;
-  }
+const bot = new Telegraf(process.env.BOT_TOKEN);
 
-  fetch('/tap/' + tg.initDataUnsafe.user.id)
-    .then(r => r.json())
-    .then(data => {
-      document.getElementById("coins").innerText =
-        data.coins.toFixed(2) + " PV";
-    });
-}
+/* /start */
+bot.start((ctx) => {
+  ctx.reply("🚀 Pv App", {
+    reply_markup: {
+      keyboard: [
+        [
+          {
+            text: "🎮 Відкрити Pv App",
+            web_app: {
+              url: process.env.WEBAPP_URL
+            }
+          }
+        ]
+      ],
+      resize_keyboard: true
+    }
+  });
+});
+
+/* запуск */
+bot.launch();
+
+process.once("SIGINT", () => bot.stop("SIGINT"));
+process.once("SIGTERM", () => bot.stop("SIGTERM"));
+
+console.log("BOT STARTED");
