@@ -8,7 +8,7 @@ const app = express();
 
 app.use(express.json());
 
-/* ================= DB (НЕ СКИДАЄТЬСЯ) ================= */
+/* ================= DB ================= */
 const db = new sqlite3.Database(path.join(__dirname, "data.db"));
 
 db.serialize(() => {
@@ -163,7 +163,6 @@ body{
   font-weight:bold;
 }
 
-/* TAP */
 .tap{
   width:160px;
   height:160px;
@@ -181,7 +180,6 @@ body{
 
 .tap:active{ transform:scale(0.9); }
 
-/* STAR */
 .star{
   width:160px;
   height:160px;
@@ -200,7 +198,6 @@ body{
   );
 }
 
-/* ANIMATION */
 .plus{
   position:absolute;
   color:#00ff99;
@@ -255,6 +252,14 @@ body{
   </div>
 </div>
 
+<!-- EARN TAB -->
+<div id="earn" class="page">
+  <div class="card">
+    <h2>Earn</h2>
+    <p style="font-size:20px;">Pvlane📊</p>
+  </div>
+</div>
+
 <div id="market" class="page">
   <div class="card">
     <h3>Market</h3>
@@ -268,6 +273,7 @@ body{
   <div onclick="openPage('home')">Home</div>
   <div onclick="openPage('profile')">Profile</div>
   <div onclick="openPage('market')">Market</div>
+  <div onclick="openPage('earn')">Earn</div>
 </div>
 
 <script>
