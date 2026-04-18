@@ -5,7 +5,7 @@ const sqlite3 = require("sqlite3").verbose();
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const app = express();
 
-/* ================= DB ================= */
+/* ================= DATABASE ================= */
 const db = new sqlite3.Database("./data.db");
 
 db.run(`
@@ -19,17 +19,25 @@ CREATE TABLE IF NOT EXISTS users (
 function getUser(id, cb) {
   db.get("SELECT * FROM users WHERE id = ?", [id], (err, row) => {
     if (!row) {
-      db.run("INSERT INTO users (id, coins, level) VALUES (?, 0, 1)", [id]);
-      return cb({ id, coins: 0, level: 1 });
+      db.run(
+        "INSERT INTO users (id, coins, level) VALUES (?, 0, 1)",
+        [id],
+        () => cb({ id, coins: 0, level: 1 })
+      );
+    } else {
+      cb(row);
     }
-    cb(row);
   });
 }
 
 function addCoins(id, amount, cb) {
-  db.run("UPDATE users SET coins = coins + ? WHERE id = ?", [amount, id], () => {
-    getUser(id, cb);
-  });
+  db.run(
+    "UPDATE users SET coins = coins + ? WHERE id = ?",
+    [amount, id],
+    () => {
+      getUser(id, cb);
+    }
+  );
 }
 
 /* ================= WEB APP ================= */
@@ -40,56 +48,58 @@ app.get("/", (req, res) => {
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Pv App</title>
+
 <style>
-body {
-  margin: 0;
-  font-family: Arial;
-  background: #0f0f0f;
-  color: white;
-  text-align: center;
+body{
+  margin:0;
+  font-family:Arial;
+  background:#0f0f0f;
+  color:white;
+  text-align:center;
 }
 
-.top {
-  font-size: 24px;
-  margin-top: 20px;
+.top{
+  font-size:24px;
+  margin-top:20px;
 }
 
-.balance {
-  font-size: 40px;
-  margin-top: 20px;
-  transition: 0.2s;
+.balance{
+  font-size:42px;
+  margin-top:20px;
+  transition:0.2s;
 }
 
-.tap {
-  width: 170px;
-  height: 170px;
-  border-radius: 50%;
-  background: white;
-  color: black;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 50px auto;
-  font-size: 22px;
-  cursor: pointer;
-  user-select: none;
-  transition: transform 0.1s;
+.tap{
+  width:170px;
+  height:170px;
+  border-radius:50%;
+  background:white;
+  color:black;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  margin:50px auto;
+  font-size:22px;
+  cursor:pointer;
+  user-select:none;
+  transition:0.1s;
 }
 
-.tap:active {
-  transform: scale(0.9);
+.tap:active{
+  transform:scale(0.9);
 }
 
-.bottom {
-  position: fixed;
-  bottom: 0;
-  width: 100%;
-  display: flex;
-  justify-content: space-around;
-  padding: 15px;
-  background: #1a1a1a;
+.bottom{
+  position:fixed;
+  bottom:0;
+  width:100%;
+  display:flex;
+  justify-content:space-around;
+  padding:15px;
+  background:#1a1a1a;
 }
 </style>
+
 </head>
 
 <body>
@@ -101,18 +111,30 @@ body {
 <div class="tap" onclick="tap()">TAP</div>
 
 <div class="bottom">
-  <div onclick="show('coins')">Coins</div>
-  <div onclick="show('profile')">Profile</div>
-  <div onclick="show('market')">Market</div>
+  <div onclick="tab('coins')">Coins</div>
+  <div onclick="tab('profile')">Profile</div>
+  <div onclick="tab('market')">Market</div>
 </div>
 
 <script>
 let tg = window.Telegram.WebApp;
 tg.expand();
 
-const userId = tg.initDataUnsafe?.user?.id;
+function getUserId(){
+  return tg.initDataUnsafe && tg.initDataUnsafe.user
+    ? tg.initDataUnsafe.user.id
+    : null;
+}
 
-function tap() {
+/* TAP */
+function tap(){
+  const userId = getUserId();
+
+  if(!userId){
+    alert("Відкрий через Telegram");
+    return;
+  }
+
   fetch('/tap/' + userId)
     .then(r => r.json())
     .then(data => {
@@ -120,14 +142,34 @@ function tap() {
         data.coins.toFixed(2) + " PV";
 
       document.querySelector(".balance").style.transform = "scale(1.1)";
-      setTimeout(() => {
+      setTimeout(()=>{
         document.querySelector(".balance").style.transform = "scale(1)";
-      }, 100);
+      },100);
     });
 }
 
-function show(tab) {
-  alert(tab + " (soon)");
+/* TABS */
+function tab(name){
+  if(name === "coins"){
+    alert("Coins");
+  }
+
+  if(name === "profile"){
+    const userId = getUserId();
+    fetch('/profile/' + userId)
+      .then(r => r.json())
+      .then(data => {
+        alert(
+          "ID: " + data.id +
+          "\\nCoins: " + data.coins.toFixed(2) +
+          "\\nLevel: " + data.level
+        );
+      });
+  }
+
+  if(name === "market"){
+    alert("Market (soon)");
+  }
 }
 </script>
 
@@ -141,6 +183,15 @@ app.get("/tap/:id", (req, res) => {
   const id = req.params.id;
 
   addCoins(id, 0.01, (user) => {
+    res.json(user);
+  });
+});
+
+/* ================= PROFILE ================= */
+app.get("/profile/:id", (req, res) => {
+  const id = req.params.id;
+
+  getUser(id, (user) => {
     res.json(user);
   });
 });
@@ -166,18 +217,6 @@ bot.start((ctx) => {
       ],
       resize_keyboard: true
     }
-  });
-});
-
-/* profile */
-bot.command("profile", (ctx) => {
-  getUser(ctx.from.id, (user) => {
-    ctx.reply(
-`👤 Profile
-ID: ${user.id}
-💰 Coins: ${user.coins.toFixed(2)}
-⭐ Level: ${user.level}`
-    );
   });
 });
 
