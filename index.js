@@ -158,3 +158,6 @@ process.once("SIGINT", () => bot.stop("SIGINT"));
 process.once("SIGTERM", () => bot.stop("SIGTERM"));
 
 console.log("BOT STARTED");
+console.log(window.Telegram);
+console.log(window.Telegram?.WebApp);
+console.log(window.Telegram?.WebApp?.initDataUnsafe);
