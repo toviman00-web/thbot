@@ -28,19 +28,21 @@ function getUser(id, cb) {
 }
 
 function addCoins(id, cb) {
-  db.run("UPDATE users SET coins = coins + 0.01 WHERE id = ?", [id], () => {
-    getUser(id, cb);
-  });
+  db.run(
+    "UPDATE users SET coins = coins + 0.01 WHERE id = ?",
+    [id],
+    () => getUser(id, cb)
+  );
 }
 
-/* ================= WEB ================= */
+/* ================= WEB APP ================= */
 app.get("/", (req, res) => {
   res.send(`
 <!DOCTYPE html>
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pv App</title>
+<title>Pv Game</title>
 
 <style>
 body{
@@ -51,9 +53,21 @@ body{
   text-align:center;
 }
 
-.title{ font-size:26px; margin-top:20px; }
+.title{
+  font-size:24px;
+  margin-top:15px;
+}
 
-.coins{ font-size:40px; margin-top:20px; }
+.screen{
+  font-size:18px;
+  margin-top:10px;
+  opacity:0.8;
+}
+
+.coins{
+  font-size:40px;
+  margin-top:20px;
+}
 
 .tap{
   width:160px;
@@ -64,7 +78,7 @@ body{
   display:flex;
   align-items:center;
   justify-content:center;
-  margin:50px auto;
+  margin:40px auto;
   cursor:pointer;
   user-select:none;
 }
@@ -78,69 +92,92 @@ body{
   background:#1a1a1a;
   padding:12px;
 }
+
+.menu div{
+  cursor:pointer;
+}
 </style>
 
 </head>
 
 <body>
 
-<div class="title">Pv App</div>
+<div class="title">🔥 Pv Game</div>
+
+<div class="screen" id="screen">Home</div>
 
 <div class="coins" id="coins">0.00 PV</div>
 
 <div class="tap" onclick="tap()">TAP</div>
 
 <div class="menu">
-  <div onclick="show('coins')">Coins</div>
-  <div onclick="show('profile')">Profile</div>
-  <div onclick="show('market')">Market</div>
+  <div onclick="openTab('home')">Home</div>
+  <div onclick="openTab('profile')">Profile</div>
+  <div onclick="openTab('market')">Market</div>
 </div>
 
 <script>
 let tg = window.Telegram?.WebApp;
-
-if(tg){
-  tg.expand();
-}
+tg?.expand();
 
 function getId(){
-  return tg?.initDataUnsafe?.user?.id || 123456; // fallback щоб не ламалось
+  return tg?.initDataUnsafe?.user?.id || null;
 }
 
-/* TAP */
+/* ================= STATE ================= */
+function setScreen(text){
+  document.getElementById("screen").innerText = text;
+}
+
+/* ================= TAP ================= */
 function tap(){
+  const id = getId();
+  if(!id){
+    alert("Open inside Telegram");
+    return;
+  }
+
   fetch('/tap', {
     method:'POST',
     headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ id: getId() })
+    body: JSON.stringify({ id })
   })
   .then(r=>r.json())
   .then(d=>{
     document.getElementById("coins").innerText =
       d.coins.toFixed(2) + " PV";
+
+    setScreen("ID: " + d.id + " | Balance updated");
   });
 }
 
-/* TABS */
-function show(tab){
-  if(tab === "coins"){
+/* ================= TABS ================= */
+function openTab(tab){
+  const id = getId();
+
+  if(!id){
+    alert("Open inside Telegram");
     return;
+  }
+
+  if(tab === "home"){
+    setScreen("Home");
   }
 
   if(tab === "profile"){
     fetch('/profile', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ id: getId() })
+      body: JSON.stringify({ id })
     })
     .then(r=>r.json())
     .then(d=>{
-      alert("ID: " + d.id + "\\nCoins: " + d.coins.toFixed(2));
+      setScreen("ID: " + d.id + " | Coins: " + d.coins.toFixed(2));
     });
   }
 
   if(tab === "market"){
-    alert("Market soon");
+    setScreen("Market (soon)");
   }
 }
 </script>
@@ -170,11 +207,11 @@ app.post("/profile", (req, res) => {
 
 /* ================= BOT ================= */
 bot.start((ctx) => {
-  ctx.reply("🔥 Pv App", {
+  ctx.reply("🔥 Pv Game", {
     reply_markup: {
       keyboard: [[
         {
-          text: "🎮 Open App",
+          text: "🎮 Open Game",
           web_app: {
             url: process.env.WEBAPP_URL
           }
