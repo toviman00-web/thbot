@@ -4,44 +4,66 @@ const express = require("express");
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const app = express();
 
-/* 🌐 Web App */
 app.get("/", (req, res) => {
   res.send(`
-    <h1>Pv App</h1>
-    <button onclick="tap()">TAP</button>
-    <p id="coins">0.00 PV</p>
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pv App</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial;
+      background: #0f0f0f;
+      color: white;
+      text-align: center;
+    }
 
-    <script>
-      let coins = 0;
-      function tap() {
-        coins += 0.01;
-        document.getElementById('coins').innerText = coins.toFixed(2) + " PV";
-      }
-    </script>
+    .title {
+      font-size: 28px;
+      margin-top: 20px;
+      font-weight: bold;
+    }
+
+    .coins {
+      font-size: 40px;
+      margin-top: 30px;
+    }
+
+    .tap {
+      width: 160px;
+      height: 160px;
+      border-radius: 50%;
+      background: white;
+      color: black;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 50px auto;
+      font-size: 22px;
+      cursor: pointer;
+      user-select: none;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="title">Pv App</div>
+
+  <div class="coins" id="coins">0.00 PV</div>
+
+  <div class="tap" onclick="tap()">TAP</div>
+
+  <script>
+    let coins = 0;
+
+    function tap() {
+      coins += 0.01;
+      document.getElementById("coins").innerText = coins.toFixed(2) + " PV";
+    }
+  </script>
+</body>
+</html>
   `);
 });
-
-/* сервер */
-app.listen(process.env.PORT || 3000, () => {
-  console.log("Server started");
-});
-
-/* бот */
-bot.start((ctx) => {
-  ctx.reply("Pv App", {
-    reply_markup: {
-      inline_keyboard: [
-        [
-          {
-            text: "Open App",
-            web_app: {
-              url: process.env.WEBAPP_URL
-            }
-          }
-        ]
-      ]
-    }
-  });
-});
-
-bot.launch();
