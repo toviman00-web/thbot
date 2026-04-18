@@ -72,7 +72,7 @@ body{
 }
 
 .title{font-size:24px;margin-top:15px;}
-.screen{margin-top:10px;opacity:0.8;}
+.screen{margin-top:10px;}
 .coins{font-size:40px;margin-top:20px;}
 
 .tap{
@@ -98,50 +98,97 @@ body{
   padding:12px;
 }
 </style>
-
 </head>
 
 <body>
 
 <div class="title">🔥 Pv Game</div>
-
-<div class="screen" id="screen">Home</div>
-
+<div class="screen" id="screen">Loading...</div>
 <div class="coins" id="coins">0.00 PV</div>
 
-<div class="tap" onclick="tap()">TAP</div>
+<div class="tap" id="tapBtn">TAP</div>
 
 <div class="menu">
-  <div onclick="openTab('home')">Home</div>
-  <div onclick="openTab('profile')">Profile</div>
-  <div onclick="openTab('market')">Market</div>
+  <div id="homeBtn">Home</div>
+  <div id="profileBtn">Profile</div>
+  <div id="marketBtn">Market</div>
 </div>
 
 <script>
-setTimeout(() => {
-  alert("INIT DATA:\n" + window.Telegram.WebApp.initData);
-  alert("UNSAFE:\n" + JSON.stringify(window.Telegram.WebApp.initDataUnsafe));
-}, 1000);
+const tg = window.Telegram.WebApp;
+tg.ready();
+tg.expand();
+
+/* DEBUG */
+console.log("TG:", tg);
+console.log("user:", tg.initDataUnsafe?.user);
+
+function getId(){
+  return tg.initDataUnsafe?.user?.id || null;
+}
+
+/* ===== TAP ===== */
+document.getElementById("tapBtn").addEventListener("click", () => {
+  const id = getId();
+
+  if(!id){
+    alert("NO USER");
+    return;
+  }
+
+  fetch("/tap", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ id })
+  })
+  .then(r=>r.json())
+  .then(d=>{
+    document.getElementById("coins").innerText =
+      d.coins.toFixed(2) + " PV";
+
+    document.getElementById("screen").innerText = "TAP +0.01";
+  });
+});
+
+/* ===== HOME ===== */
+document.getElementById("homeBtn").addEventListener("click", () => {
+  document.getElementById("screen").innerText = "Home";
+});
+
+/* ===== PROFILE ===== */
+document.getElementById("profileBtn").addEventListener("click", () => {
+  const id = getId();
+
+  if(!id){
+    alert("NO USER");
+    return;
+  }
+
+  fetch("/profile", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ id })
+  })
+  .then(r=>r.json())
+  .then(d=>{
+    document.getElementById("screen").innerText =
+      "ID: " + d.id + " | Coins: " + d.coins.toFixed(2);
+  });
+});
+
+/* ===== MARKET ===== */
+document.getElementById("marketBtn").addEventListener("click", () => {
+  document.getElementById("screen").innerText = "Market soon";
+});
+
+/* INIT */
+document.getElementById("screen").innerText = "Home";
+</script>
+
 </body>
 </html>
   `);
 });
-
-/* ================= BOT ================= */
-bot.start((ctx) => {
-  ctx.reply("🔥 Pv Game", {
-    reply_markup: {
-      keyboard: [[
-        {
-          text: "🎮 Open Game",
-          web_app: {
-            url: "https://thbot-production.up.railway.app/"
-          }
-        }
-      ]],
-      resize_keyboard: true
-    }
-  });
 });
 bot.telegram.deleteWebhook();
 bot.launch();
