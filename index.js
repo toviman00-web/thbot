@@ -117,23 +117,26 @@ body{
 </div>
 
 <script>
-let tg = window.Telegram?.WebApp;
-tg?.expand();
+let tg = window.Telegram.WebApp;
+tg.expand();
 
-function getId(){
-  return tg?.initDataUnsafe?.user?.id || null;
-}
-
-/* ================= STATE ================= */
-function setScreen(text){
-  document.getElementById("screen").innerText = text;
+/* 🔥 БЕРЕМО USER ПРАВИЛЬНО */
+function getUserId(){
+  try {
+    const data = new URLSearchParams(tg.initData);
+    const user = JSON.parse(data.get("user"));
+    return user.id;
+  } catch(e){
+    return null;
+  }
 }
 
 /* ================= TAP ================= */
 function tap(){
-  const id = getId();
+  const id = getUserId();
+
   if(!id){
-    alert("Open inside Telegram");
+    alert("❌ Open only via Telegram button");
     return;
   }
 
@@ -146,39 +149,38 @@ function tap(){
   .then(d=>{
     document.getElementById("coins").innerText =
       d.coins.toFixed(2) + " PV";
-
-    setScreen("ID: " + d.id + " | Balance updated");
   });
 }
 
 /* ================= TABS ================= */
 function openTab(tab){
-  const id = getId();
+  const id = getUserId();
 
   if(!id){
-    alert("Open inside Telegram");
+    alert("❌ Open only via Telegram button");
     return;
   }
 
-  if(tab === "home"){
-    setScreen("Home");
-  }
+  fetch('/profile', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ id })
+  })
+  .then(r=>r.json())
+  .then(d=>{
+    if(tab === "profile"){
+      document.getElementById("screen").innerText =
+        "ID: " + d.id + " | Coins: " + d.coins.toFixed(2);
+    }
 
-  if(tab === "profile"){
-    fetch('/profile', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ id })
-    })
-    .then(r=>r.json())
-    .then(d=>{
-      setScreen("ID: " + d.id + " | Coins: " + d.coins.toFixed(2));
-    });
-  }
+    if(tab === "market"){
+      document.getElementById("screen").innerText = "Market soon";
+    }
 
-  if(tab === "market"){
-    setScreen("Market (soon)");
-  }
+    if(tab === "home"){
+      document.getElementById("screen").innerText = "Home";
+    }
+  });
 }
 </script>
 
