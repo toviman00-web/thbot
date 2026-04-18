@@ -178,7 +178,7 @@ body{
   position:relative;
 }
 
-.tap:active{ transform:scale(0.9); }
+.tap:active{transform:scale(0.9);}
 
 .star{
   width:160px;
@@ -205,8 +205,8 @@ body{
 }
 
 @keyframes up{
-  0%{opacity:1; transform:translateY(0);}
-  100%{opacity:0; transform:translateY(-50px);}
+  0%{opacity:1;transform:translateY(0);}
+  100%{opacity:0;transform:translateY(-50px);}
 }
 
 .card{
@@ -268,39 +268,11 @@ body{
   </div>
 </div>
 
-<!-- ================= DONATE ================= -->
-<div id="donate" class="page">
-  <div class="card">
-    <h2>Donate 💎</h2>
-
-    <div style="display:flex; gap:10px; justify-content:center; margin-top:20px;">
-
-      <div onclick="donate()" style="
-        width:80px;height:80px;
-        background:rgba(255,255,255,0.2);
-        display:flex;align-items:center;justify-content:center;
-        border-radius:10px;cursor:pointer;font-weight:bold;">
-        10💎
-      </div>
-
-      <div onclick="donate()" style="
-        width:80px;height:80px;
-        background:rgba(255,255,255,0.2);
-        display:flex;align-items:center;justify-content:center;
-        border-radius:10px;cursor:pointer;font-weight:bold;">
-        20💎
-      </div>
-
-    </div>
-  </div>
-</div>
-
 <div class="menu">
   <div onclick="openPage('home')">Home</div>
   <div onclick="openPage('profile')">Profile</div>
   <div onclick="openPage('market')">Market</div>
   <div onclick="openPage('earn')">Earn</div>
-  <div onclick="openPage('donate')">Donate💎</div>
 </div>
 
 <script>
@@ -335,8 +307,8 @@ document.getElementById("tapBtn").onclick = () => {
       d.coins.toFixed(2) + " PV";
 
     const plus = document.createElement("div");
-    plus.className = "plus";
-    plus.innerText = "+0.01";
+    plus.className="plus";
+    plus.innerText="+0.01";
     document.getElementById("tapBtn").appendChild(plus);
     setTimeout(()=>plus.remove(),600);
   });
@@ -351,9 +323,8 @@ function loadProfile(){
   })
   .then(r=>r.json())
   .then(d=>{
-    document.getElementById("pid").innerText = "ID: " + d.id;
-    document.getElementById("pcoins").innerText =
-      "Balance: " + d.coins.toFixed(2) + " PV";
+    document.getElementById("pid").innerText="ID: "+d.id;
+    document.getElementById("pcoins").innerText="Balance: "+d.coins.toFixed(2)+" PV";
   });
 }
 
@@ -363,27 +334,18 @@ function buySkin(skin){
     method:"POST",
     headers:{"Content-Type":"application/json"},
     body: JSON.stringify({ id: id(), skin })
-  })
+  });
 }
 
 /* PROMO */
 function sendPromo(){
-  const code = document.getElementById("promo").value;
+  const code=document.getElementById("promo").value;
 
   fetch("/promo", {
     method:"POST",
     headers:{"Content-Type":"application/json"},
     body: JSON.stringify({ id: id(), code })
-  })
-  .then(r=>r.json())
-  .then(d=>{
-    if(!d.error) loadProfile();
-  });
-}
-
-/* DONATE */
-function donate(){
-  window.open("https://t.me/Vhile09", "_blank");
+  }).then(()=>loadProfile());
 }
 </script>
 
@@ -401,6 +363,33 @@ bot.start((ctx) => {
       ]]
     }
   });
+});
+
+/* ================= ADMIN ================= */
+const ADMIN_ID = 123456789;
+
+bot.command("users", (ctx) => {
+  if (ctx.from.id !== ADMIN_ID) return;
+
+  db.all("SELECT * FROM users", [], (err, rows) => {
+    let text = "👥 USERS\n\n";
+    rows.forEach(u => {
+      text += `ID: ${u.id} | ${u.coins}\n`;
+    });
+    ctx.reply(text);
+  });
+});
+
+bot.command("give", (ctx) => {
+  if (ctx.from.id !== 1642108682) return;
+
+  const [_, id, amount] = ctx.message.text.split(" ");
+
+  db.run(
+    "UPDATE users SET coins = coins + ? WHERE id = ?",
+    [amount, id],
+    () => ctx.reply("done")
+  );
 });
 
 bot.telegram.deleteWebhook();
