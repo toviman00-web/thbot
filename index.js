@@ -252,11 +252,10 @@ body{
   </div>
 </div>
 
-<!-- EARN TAB -->
 <div id="earn" class="page">
   <div class="card">
     <h2>Earn</h2>
-    <p style="font-size:20px;">Pvlane📊</p>
+    <p>Pvlane📊</p>
   </div>
 </div>
 
@@ -269,11 +268,39 @@ body{
   </div>
 </div>
 
+<!-- ================= DONATE ================= -->
+<div id="donate" class="page">
+  <div class="card">
+    <h2>Donate 💎</h2>
+
+    <div style="display:flex; gap:10px; justify-content:center; margin-top:20px;">
+
+      <div onclick="donate()" style="
+        width:80px;height:80px;
+        background:rgba(255,255,255,0.2);
+        display:flex;align-items:center;justify-content:center;
+        border-radius:10px;cursor:pointer;font-weight:bold;">
+        10💎
+      </div>
+
+      <div onclick="donate()" style="
+        width:80px;height:80px;
+        background:rgba(255,255,255,0.2);
+        display:flex;align-items:center;justify-content:center;
+        border-radius:10px;cursor:pointer;font-weight:bold;">
+        20💎
+      </div>
+
+    </div>
+  </div>
+</div>
+
 <div class="menu">
   <div onclick="openPage('home')">Home</div>
   <div onclick="openPage('profile')">Profile</div>
   <div onclick="openPage('market')">Market</div>
   <div onclick="openPage('earn')">Earn</div>
+  <div onclick="openPage('donate')">Donate💎</div>
 </div>
 
 <script>
@@ -330,23 +357,13 @@ function loadProfile(){
   });
 }
 
-/* SKINS */
+/* SKIN */
 function buySkin(skin){
   fetch("/buy-skin", {
     method:"POST",
     headers:{"Content-Type":"application/json"},
     body: JSON.stringify({ id: id(), skin })
   })
-  .then(r=>r.json())
-  .then(d=>{
-    if(d.error) return alert(d.error);
-
-    if(skin==="star")
-      document.getElementById("tapBtn").className="tap star";
-
-    if(skin==="red")
-      document.getElementById("tapBtn").style.background="red";
-  });
 }
 
 /* PROMO */
@@ -360,10 +377,13 @@ function sendPromo(){
   })
   .then(r=>r.json())
   .then(d=>{
-    if(d.error) return alert(d.error);
-    loadProfile();
-    alert("OK");
+    if(!d.error) loadProfile();
   });
+}
+
+/* DONATE */
+function donate(){
+  window.open("https://t.me/Vhile09", "_blank");
 }
 </script>
 
@@ -374,70 +394,18 @@ function sendPromo(){
 
 /* ================= BOT ================= */
 bot.start((ctx) => {
-  const link = `https://t.me/${ctx.botInfo.username}?start=${ctx.from.id}`;
-
-  ctx.reply(
-`🔥 Pv App
-
-👥 Referral:
-${link}`,
-    {
-      reply_markup: {
-        inline_keyboard: [[
-          { text: "Open App", web_app: { url: process.env.WEBAPP_URL } }
-        ]]
-      }
+  ctx.reply("🔥 Pv App", {
+    reply_markup: {
+      inline_keyboard: [[
+        { text: "Open App", web_app: { url: process.env.WEBAPP_URL } }
+      ]]
     }
-  );
+  });
 });
 
 bot.telegram.deleteWebhook();
 bot.launch();
-const ADMIN_ID = 1642108682; // <-- сюди свій Telegram ID
 
-bot.command("users", (ctx) => {
-  if (ctx.from.id !== ADMIN_ID) return;
-
-  db.all("SELECT * FROM users", [], (err, rows) => {
-    let text = "👥 Players:\n\n";
-
-    rows.forEach(u => {
-      text += `ID: ${u.id}\nCoins: ${u.coins}\n\n`;
-    });
-
-    ctx.reply(text || "no users");
-  });
-});
-
-bot.command("give", (ctx) => {
-  if (ctx.from.id !== ADMIN_ID) return;
-
-  const parts = ctx.message.text.split(" ");
-  const id = parts[1];
-  const amount = parseFloat(parts[2]);
-
-  if (!id || !amount) {
-    return ctx.reply("use: /give id amount");
-  }
-
-  db.run(
-    "UPDATE users SET coins = coins + ? WHERE id = ?",
-    [amount, id],
-    () => ctx.reply(`✅ +${amount} PV to ${id}`)
-  );
-});
-
-bot.command("stats", (ctx) => {
-  if (ctx.from.id !== ADMIN_ID) return;
-
-  const id = ctx.message.text.split(" ")[1];
-
-  db.get("SELECT * FROM users WHERE id = ?", [id], (err, row) => {
-    if (!row) return ctx.reply("not found");
-
-    ctx.reply(`ID: ${row.id}\nCoins: ${row.coins}`);
-  });
-});
 /* ================= SERVER ================= */
 app.listen(process.env.PORT || 3000, () => {
   console.log("Server started");
