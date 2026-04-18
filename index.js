@@ -186,14 +186,20 @@ document.getElementById("marketBtn").onclick = () => {
 bot.start((ctx) => {
   ctx.reply("🔥 Pv App", {
     reply_markup: {
-      keyboard: [[
+     bot.start((ctx) => {
+  ctx.reply("🔥 Pv App", {
+    reply_markup: {
+      inline_keyboard: [[
         {
           text: "🎮 Open App",
           web_app: {
             url: process.env.WEBAPP_URL
           }
         }
-      ]],
+      ]]
+    }
+  });
+});
       resize_keyboard: true
     }
   });
