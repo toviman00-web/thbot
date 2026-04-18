@@ -117,72 +117,10 @@ body{
 </div>
 
 <script>
-const tg = window.Telegram.WebApp;
-
-tg.ready();
-tg.expand();
-
-/* DEBUG */
-console.log("initData:", tg.initData);
-console.log("user:", tg.initDataUnsafe?.user);
-
-function getId(){
-  const tg = window.Telegram?.WebApp;
-
-  console.log("FULL TG:", tg);
-  console.log("initData:", tg?.initData);
-  console.log("unsafe:", tg?.initDataUnsafe);
-
-  return tg?.initDataUnsafe?.user?.id || null;
-}
-
-  fetch('/tap', {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ id })
-  })
-  .then(r=>r.json())
-  .then(d=>{
-    document.getElementById("coins").innerText =
-      d.coins.toFixed(2) + " PV";
-
-    document.getElementById("screen").innerText =
-      "TAP +0.01";
-  });
-}
-
-/* TABS */
-function openTab(tab){
-  const id = getId();
-
-  if(!id){
-    alert("NO USER (open via Telegram button)");
-    return;
-  }
-
-  fetch('/profile', {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ id })
-  })
-  .then(r=>r.json())
-  .then(d=>{
-    if(tab === "home"){
-      document.getElementById("screen").innerText = "Home";
-    }
-
-    if(tab === "profile"){
-      document.getElementById("screen").innerText =
-        "ID: " + d.id + " | Coins: " + d.coins.toFixed(2);
-    }
-
-    if(tab === "market"){
-      document.getElementById("screen").innerText = "Market soon";
-    }
-  });
-}
-</script>
-
+setTimeout(() => {
+  alert("INIT DATA:\n" + window.Telegram.WebApp.initData);
+  alert("UNSAFE:\n" + JSON.stringify(window.Telegram.WebApp.initDataUnsafe));
+}, 1000);
 </body>
 </html>
   `);
