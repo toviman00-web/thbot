@@ -35,57 +35,175 @@ function addCoins(id, cb) {
   );
 }
 
-/* ================= TAP ================= */
+/* ================= API ================= */
 app.post("/tap", (req, res) => {
-  getUser(req.body.id, (user) => {
-    addCoins(user.id, (updated) => {
-      res.json(updated);
-    });
-  });
+  const id = req.body.id;
+  if (!id) return res.json({ error: "no id" });
+
+  addCoins(id, (user) => res.json(user));
 });
 
-/* ================= PROFILE ================= */
 app.post("/profile", (req, res) => {
-  getUser(req.body.id, (user) => {
-    res.json(user);
-  });
+  const id = req.body.id;
+  if (!id) return res.json({ error: "no id" });
+
+  getUser(id, (user) => res.json(user));
 });
 
 /* ================= WEB APP ================= */
 app.get("/", (req, res) => {
-  res.setHeader("Content-Type", "text/html");
-
-  res.end(`
+  res.send(`
 <!DOCTYPE html>
 <html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pv Game</title>
+
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+<style>
+body{
+  margin:0;
+  font-family:Arial;
+  background:#0f0f0f;
+  color:white;
+  text-align:center;
+}
+
+.title{font-size:24px;margin-top:15px;}
+.screen{margin-top:10px;opacity:0.8;}
+.coins{font-size:40px;margin-top:20px;}
+
+.tap{
+  width:160px;
+  height:160px;
+  border-radius:50%;
+  background:white;
+  color:black;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  margin:40px auto;
+  cursor:pointer;
+}
+
+.menu{
+  position:fixed;
+  bottom:0;
+  width:100%;
+  display:flex;
+  justify-content:space-around;
+  background:#1a1a1a;
+  padding:12px;
+}
+</style>
+
+</head>
+
 <body>
-<h3>Loading...</h3>
+
+<div class="title">🔥 Pv Game</div>
+
+<div class="screen" id="screen">Home</div>
+
+<div class="coins" id="coins">0.00 PV</div>
+
+<div class="tap" onclick="tap()">TAP</div>
+
+<div class="menu">
+  <div onclick="openTab('home')">Home</div>
+  <div onclick="openTab('profile')">Profile</div>
+  <div onclick="openTab('market')">Market</div>
+</div>
 
 <script>
-setTimeout(() => {
-  const tg = window.Telegram?.WebApp;
+const tg = window.Telegram.WebApp;
 
-  alert("initData:\\n" + tg?.initData);
-  alert("user:\\n" + JSON.stringify(tg?.initDataUnsafe?.user));
-}, 1000);
+tg.ready();
+tg.expand();
+
+/* DEBUG */
+console.log("initData:", tg.initData);
+console.log("user:", tg.initDataUnsafe?.user);
+
+function getId(){
+  return tg.initDataUnsafe?.user?.id || null;
+}
+
+/* TAP */
+function tap(){
+  const id = getId();
+
+  if(!id){
+    alert("NO USER (open via Telegram button)");
+    return;
+  }
+
+  fetch('/tap', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ id })
+  })
+  .then(r=>r.json())
+  .then(d=>{
+    document.getElementById("coins").innerText =
+      d.coins.toFixed(2) + " PV";
+
+    document.getElementById("screen").innerText =
+      "TAP +0.01";
+  });
+}
+
+/* TABS */
+function openTab(tab){
+  const id = getId();
+
+  if(!id){
+    alert("NO USER (open via Telegram button)");
+    return;
+  }
+
+  fetch('/profile', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ id })
+  })
+  .then(r=>r.json())
+  .then(d=>{
+    if(tab === "home"){
+      document.getElementById("screen").innerText = "Home";
+    }
+
+    if(tab === "profile"){
+      document.getElementById("screen").innerText =
+        "ID: " + d.id + " | Coins: " + d.coins.toFixed(2);
+    }
+
+    if(tab === "market"){
+      document.getElementById("screen").innerText = "Market soon";
+    }
+  });
+}
 </script>
 
 </body>
 </html>
   `);
 });
+
 /* ================= BOT ================= */
 bot.start((ctx) => {
-  ctx.reply("🔥 Pv App", {
+  ctx.reply("🔥 Pv Game", {
     reply_markup: {
       keyboard: [[
         {
-          text: "🎮 Open App",
+          text: "🎮 Open Game",
           web_app: {
             url: process.env.WEBAPP_URL
           }
         }
-      ]]
+      ]],
+      resize_keyboard: true
     }
   });
 });
