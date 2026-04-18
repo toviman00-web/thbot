@@ -393,7 +393,7 @@ ${link}`,
 
 bot.telegram.deleteWebhook();
 bot.launch();
-const ADMIN_ID = 123456789; // <-- сюди свій Telegram ID
+const ADMIN_ID = 1642108682; // <-- сюди свій Telegram ID
 
 bot.command("users", (ctx) => {
   if (ctx.from.id !== ADMIN_ID) return;
