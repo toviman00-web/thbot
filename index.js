@@ -116,20 +116,17 @@ body{
 
 <script>
 let tg = window.Telegram?.WebApp;
+
 tg?.expand();
 
-/* ================= SAFE USER ================= */
+/* ================= USER ================= */
 function getUserId() {
-  try {
-    if (!tg?.initData) return null;
+  const user = tg?.initDataUnsafe?.user;
 
-    const params = new URLSearchParams(tg.initData);
-    const user = JSON.parse(params.get("user"));
+  if (user && user.id) return user.id;
 
-    return user?.id || null;
-  } catch (e) {
-    return null;
-  }
+  // ⚠️ тільки для тесту, щоб не блокувалось
+  return null;
 }
 
 /* ================= TAP ================= */
@@ -137,7 +134,7 @@ function tap() {
   const id = getUserId();
 
   if (!id) {
-    alert("❌ Open only via Telegram button");
+    alert("❌ Open ONLY inside Telegram (via button)");
     return;
   }
 
@@ -152,7 +149,7 @@ function tap() {
         d.coins.toFixed(2) + " PV";
 
       document.getElementById("screen").innerText =
-        "ID: " + d.id + " | TAP +0.01";
+        "ID: " + d.id + " | +0.01 PV";
     });
 }
 
@@ -161,7 +158,7 @@ function openTab(tab) {
   const id = getUserId();
 
   if (!id) {
-    alert("❌ Open only via Telegram button");
+    alert("❌ Open ONLY inside Telegram");
     return;
   }
 
@@ -186,7 +183,7 @@ function openTab(tab) {
       }
     });
 }
-</script>}
+</script>
 
 </body>
 </html>
