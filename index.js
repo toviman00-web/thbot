@@ -67,3 +67,4 @@ app.get("/", (req, res) => {
 </html>
   `);
 });
+console.log("BOT TOKEN:8750192272:AAEV20ZeZBj88fEfc9K9_wSh_nErYXErTRY", process.env.BOT_TOKEN);
