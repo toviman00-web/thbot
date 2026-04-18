@@ -143,7 +143,7 @@ bot.start((ctx) => {
     }
   });
 });
-
+bot.telegram.deleteWebhook();
 bot.launch();
 
 app.listen(process.env.PORT || 3000, () => {
