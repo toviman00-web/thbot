@@ -127,17 +127,14 @@ console.log("initData:", tg.initData);
 console.log("user:", tg.initDataUnsafe?.user);
 
 function getId(){
-  return tg.initDataUnsafe?.user?.id || null;
+  const tg = window.Telegram?.WebApp;
+
+  console.log("FULL TG:", tg);
+  console.log("initData:", tg?.initData);
+  console.log("unsafe:", tg?.initDataUnsafe);
+
+  return tg?.initDataUnsafe?.user?.id || null;
 }
-
-/* TAP */
-function tap(){
-  const id = getId();
-
-  if(!id){
-    alert("NO USER (open via Telegram button)");
-    return;
-  }
 
   fetch('/tap', {
     method:'POST',
