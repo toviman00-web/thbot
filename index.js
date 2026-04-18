@@ -118,65 +118,75 @@ body{
 let tg = window.Telegram?.WebApp;
 tg?.expand();
 
-function getId(){
-  return tg?.initDataUnsafe?.user?.id || null;
+/* ================= SAFE USER ================= */
+function getUserId() {
+  try {
+    if (!tg?.initData) return null;
+
+    const params = new URLSearchParams(tg.initData);
+    const user = JSON.parse(params.get("user"));
+
+    return user?.id || null;
+  } catch (e) {
+    return null;
+  }
 }
 
-/* TAP */
-function tap(){
-  const id = getId();
+/* ================= TAP ================= */
+function tap() {
+  const id = getUserId();
 
-  if(!id){
-    alert("Open inside Telegram");
+  if (!id) {
+    alert("❌ Open only via Telegram button");
     return;
   }
 
-  fetch('/tap', {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
+  fetch("/tap", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id })
   })
-  .then(r=>r.json())
-  .then(d=>{
-    document.getElementById("coins").innerText =
-      d.coins.toFixed(2) + " PV";
+    .then(r => r.json())
+    .then(d => {
+      document.getElementById("coins").innerText =
+        d.coins.toFixed(2) + " PV";
 
-    document.getElementById("screen").innerText =
-      "TAP +0.01 PV";
-  });
+      document.getElementById("screen").innerText =
+        "ID: " + d.id + " | TAP +0.01";
+    });
 }
 
-/* TABS */
-function openTab(tab){
-  const id = getId();
+/* ================= TABS ================= */
+function openTab(tab) {
+  const id = getUserId();
 
-  if(!id){
-    alert("Open inside Telegram");
+  if (!id) {
+    alert("❌ Open only via Telegram button");
     return;
   }
 
-  if(tab === "home"){
-    document.getElementById("screen").innerText = "Home";
-  }
+  fetch("/profile", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id })
+  })
+    .then(r => r.json())
+    .then(d => {
+      if (tab === "home") {
+        document.getElementById("screen").innerText = "Home";
+      }
 
-  if(tab === "market"){
-    document.getElementById("screen").innerText = "Market soon";
-  }
+      if (tab === "profile") {
+        document.getElementById("screen").innerText =
+          "ID: " + d.id + " | Coins: " + d.coins.toFixed(2);
+      }
 
-  if(tab === "profile"){
-    fetch('/profile', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ id })
-    })
-    .then(r=>r.json())
-    .then(d=>{
-      document.getElementById("screen").innerText =
-        "ID: " + d.id + " | Coins: " + d.coins.toFixed(2);
+      if (tab === "market") {
+        document.getElementById("screen").innerText = "Market soon";
+      }
     });
-  }
 }
-</script>
+</script>}
 
 </body>
 </html>
