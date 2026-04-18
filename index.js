@@ -42,7 +42,7 @@ function getUser(id, cb){
   });
 }
 
-/* ===== ADD COINS ===== */
+/* ===== COINS ===== */
 function addCoins(id, amount, cb){
   db.run(
     "UPDATE users SET coins = coins + ? WHERE id = ?",
@@ -67,7 +67,7 @@ app.post("/profile", (req, res) => {
   getUser(id, user => res.json(user));
 });
 
-/* ===== BUY SKIN ===== */
+/* ===== SKINS ===== */
 app.post("/buy-skin", (req, res) => {
   const { id, skin } = req.body;
 
@@ -91,13 +91,16 @@ app.post("/buy-skin", (req, res) => {
   });
 });
 
-/* ===== PROMO CODE ===== */
+/* ===== PROMO SYSTEM (HIDDEN) ===== */
 function usePromo(id, code, value, cb){
   db.get(
     "SELECT * FROM promos WHERE user_id = ? AND code = ?",
     [id, code],
     (err, row) => {
-      if(row) return cb({ error: "already used" });
+
+      if(row){
+        return cb({ error: "already used" });
+      }
 
       db.run(
         "INSERT INTO promos (user_id, code) VALUES (?, ?)",
@@ -119,7 +122,6 @@ app.post("/promo", (req, res) => {
   };
 
   const value = promos[code];
-
   if(!value) return res.json({ error: "invalid code" });
 
   usePromo(id, code, value, user => res.json(user));
@@ -162,7 +164,6 @@ body{
 .tap{
   width:160px;
   height:160px;
-  border-radius:50%;
   background:white;
   color:black;
   display:flex;
@@ -170,8 +171,8 @@ body{
   justify-content:center;
   font-size:22px;
   font-weight:bold;
+  border-radius:50%;
   cursor:pointer;
-  transition:0.1s;
   position:relative;
 }
 
@@ -179,7 +180,7 @@ body{
   transform:scale(0.9);
 }
 
-/* STAR SKIN */
+/* STAR SHAPE */
 .star{
   width:160px;
   height:160px;
@@ -210,19 +211,12 @@ body{
   100%{opacity:0; transform:translateY(-50px);}
 }
 
-/* MARKET */
+/* CARD */
 .card{
   background:rgba(255,255,255,0.1);
   padding:20px;
   border-radius:15px;
   width:85%;
-}
-
-.shopItem{
-  background:rgba(255,255,255,0.1);
-  padding:10px;
-  margin:10px;
-  border-radius:10px;
 }
 
 /* MENU */
@@ -238,8 +232,8 @@ body{
 
 .menu div{
   padding:10px;
-  border-radius:10px;
   background:rgba(255,255,255,0.1);
+  border-radius:10px;
   cursor:pointer;
 }
 </style>
@@ -247,44 +241,32 @@ body{
 
 <body>
 
-<!-- HOME -->
 <div id="home" class="page active">
   <div class="coins" id="coins">0.00 PV</div>
   <div id="tapBtn" class="tap">TAP</div>
 </div>
 
-<!-- PROFILE -->
 <div id="profile" class="page">
   <div class="card">
     <p id="pid">ID</p>
     <p id="pcoins">Balance</p>
 
-    <h3>Promo code</h3>
-    <input id="promo" placeholder="Enter code">
+    <input id="promo" placeholder="Enter promo">
     <button onclick="sendPromo()">Use</button>
   </div>
 </div>
 
-<!-- MARKET -->
 <div id="market" class="page">
   <div class="card">
     <h3>Market</h3>
 
-    <div class="shopItem">
-      🔴 Red Tap - 10 PV
-      <button onclick="buySkin('red')">Buy</button>
-    </div>
-
-    <div class="shopItem">
-      ⭐ Star Tap (SPECIAL) - 25 PV
-      <button onclick="buySkin('star')">Buy</button>
-    </div>
+    <button onclick="buySkin('red')">🔴 Red Tap - 10 PV</button><br><br>
+    <button onclick="buySkin('star')">⭐ Star Tap - 25 PV</button><br><br>
 
     <p id="skinInfo">Default skin</p>
   </div>
 </div>
 
-<!-- MENU -->
 <div class="menu">
   <div onclick="openPage('home')">Home</div>
   <div onclick="openPage('profile')">Profile</div>
@@ -334,6 +316,7 @@ document.getElementById("tapBtn").onclick = () => {
 /* PROFILE */
 function loadProfile(){
   const id = getId();
+
   fetch("/profile", {
     method:"POST",
     headers:{"Content-Type":"application/json"},
@@ -360,8 +343,9 @@ function buySkin(skin){
   .then(d=>{
     if(d.error) return alert(d.error);
 
-    if(skin === "red")
+    if(skin === "red"){
       document.getElementById("tapBtn").style.background = "red";
+    }
 
     if(skin === "star"){
       document.getElementById("tapBtn").className = "tap star";
@@ -382,8 +366,8 @@ function sendPromo(){
   .then(r=>r.json())
   .then(d=>{
     if(d.error) return alert(d.error);
-    alert("Added!");
     loadProfile();
+    alert("Success!");
   });
 }
 </script>
@@ -395,18 +379,13 @@ function sendPromo(){
 
 /* ===== BOT ===== */
 bot.start((ctx) => {
-  const userId = ctx.from.id;
-  const link = `https://t.me/${ctx.botInfo.username}?start=${userId}`;
+  const link = `https://t.me/${ctx.botInfo.username}?start=${ctx.from.id}`;
 
   ctx.reply(
 `🔥 Pv App
 
 👥 Referral:
-${link}
-
-Codes:
-open = +50 PV
-1may = +10 PV`,
+${link}`,
     {
       reply_markup: {
         inline_keyboard: [[
