@@ -7,7 +7,7 @@ const app = express();
 
 app.use(express.json());
 
-/* ================= DB ================= */
+/* ===== DB ===== */
 const db = new sqlite3.Database("./data.db");
 
 db.run(`
@@ -17,9 +17,9 @@ CREATE TABLE IF NOT EXISTS users (
 )
 `);
 
-function getUser(id, cb) {
+function getUser(id, cb){
   db.get("SELECT * FROM users WHERE id = ?", [id], (err, row) => {
-    if (!row) {
+    if(!row){
       db.run("INSERT INTO users (id, coins) VALUES (?, 0)", [id]);
       return cb({ id, coins: 0 });
     }
@@ -27,7 +27,7 @@ function getUser(id, cb) {
   });
 }
 
-function addCoins(id, cb) {
+function addCoins(id, cb){
   db.run(
     "UPDATE users SET coins = coins + 0.01 WHERE id = ?",
     [id],
@@ -35,41 +35,40 @@ function addCoins(id, cb) {
   );
 }
 
-/* ================= API ================= */
+/* ===== API ===== */
 app.post("/tap", (req, res) => {
   const id = req.body.id;
-  if (!id) return res.json({ error: "no id" });
+  if(!id) return res.json({ error: "no id" });
 
-  addCoins(id, (user) => res.json(user));
+  addCoins(id, user => res.json(user));
 });
 
 app.post("/profile", (req, res) => {
   const id = req.body.id;
-  if (!id) return res.json({ error: "no id" });
+  if(!id) return res.json({ error: "no id" });
 
-  getUser(id, (user) => res.json(user));
+  getUser(id, user => res.json(user));
 });
 
-/* ================= WEB APP ================= */
+/* ===== WEB APP ===== */
 app.get("/", (req, res) => {
-  res.send(`<!DOCTYPE html>
+  res.send(`
+<!DOCTYPE html>
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pv App</title>
-
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
 <style>
 body{
   margin:0;
-  font-family:Arial;
   background:#0f0f0f;
   color:white;
+  font-family:Arial;
   text-align:center;
 }
 
-/* ЕКРАНИ */
+/* сторінки */
 .page{
   display:none;
   height:80vh;
@@ -82,27 +81,20 @@ body{
   display:flex;
 }
 
-/* ТАПАЛКА */
+/* кнопка */
 .tap{
-  width:160px;
-  height:160px;
+  width:150px;
+  height:150px;
   border-radius:50%;
   background:white;
   color:black;
   display:flex;
   align-items:center;
   justify-content:center;
-  margin:20px auto;
+  margin:20px;
   cursor:pointer;
 }
 
-/* БАЛАНС */
-.coins{
-  font-size:40px;
-  margin:10px;
-}
-
-/* НИЖНЄ МЕНЮ */
 .menu{
   position:fixed;
   bottom:0;
@@ -110,7 +102,7 @@ body{
   display:flex;
   justify-content:space-around;
   background:#1a1a1a;
-  padding:12px;
+  padding:10px;
 }
 </style>
 </head>
@@ -119,14 +111,14 @@ body{
 
 <!-- HOME -->
 <div id="home" class="page active">
-  <div class="coins" id="coins">0.00 PV</div>
+  <div id="coins">0.00 PV</div>
   <div class="tap" id="tapBtn">TAP</div>
 </div>
 
 <!-- PROFILE -->
 <div id="profile" class="page">
-  <div id="profileId">ID: ...</div>
-  <div id="profileCoins">Balance: ...</div>
+  <div id="pid">ID: ...</div>
+  <div id="pcoins">Balance: ...</div>
 </div>
 
 <!-- MARKET -->
@@ -136,9 +128,9 @@ body{
 
 <!-- MENU -->
 <div class="menu">
-  <div onclick="openPage('home')">Home</div>
-  <div onclick="openPage('profile')">Profile</div>
-  <div onclick="openPage('market')">Market</div>
+  <div id="btnHome">Home</div>
+  <div id="btnProfile">Profile</div>
+  <div id="btnMarket">Market</div>
 </div>
 
 <script>
@@ -147,20 +139,23 @@ tg.ready();
 tg.expand();
 
 function getId(){
-  return tg.initDataUnsafe?.user?.id || null;
+  return tg.initDataUnsafe?.user?.id;
 }
 
-/* ПЕРЕМИКАННЯ СТОРІНОК */
-function openPage(page){
+/* перемикання */
+function openPage(id){
   document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
-  document.getElementById(page).classList.add("active");
+  document.getElementById(id).classList.add("active");
 
-  if(page === "profile"){
-    loadProfile();
-  }
+  if(id === "profile") loadProfile();
 }
 
-/* TAP */
+/* кнопки */
+document.getElementById("btnHome").onclick = () => openPage("home");
+document.getElementById("btnProfile").onclick = () => openPage("profile");
+document.getElementById("btnMarket").onclick = () => openPage("market");
+
+/* tap */
 document.getElementById("tapBtn").onclick = () => {
   const id = getId();
   if(!id) return alert("NO USER");
@@ -177,7 +172,7 @@ document.getElementById("tapBtn").onclick = () => {
   });
 };
 
-/* PROFILE LOAD */
+/* profile */
 function loadProfile(){
   const id = getId();
   if(!id) return;
@@ -189,10 +184,8 @@ function loadProfile(){
   })
   .then(r=>r.json())
   .then(d=>{
-    document.getElementById("profileId").innerText =
-      "ID: " + d.id;
-
-    document.getElementById("profileCoins").innerText =
+    document.getElementById("pid").innerText = "ID: " + d.id;
+    document.getElementById("pcoins").innerText =
       "Balance: " + d.coins.toFixed(2) + " PV";
   });
 }
@@ -200,134 +193,10 @@ function loadProfile(){
 
 </body>
 </html>
-<!DOCTYPE html>
-<html>
-<head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pv App</title>
-
-<script src="https://telegram.org/js/telegram-web-app.js"></script>
-
-<style>
-body{
-  margin:0;
-  font-family:Arial;
-  background:#0f0f0f;
-  color:white;
-  text-align:center;
-}
-
-.title{font-size:24px;margin-top:15px;}
-.screen{margin-top:10px;}
-.coins{font-size:40px;margin-top:20px;}
-
-.tap{
-  width:160px;
-  height:160px;
-  border-radius:50%;
-  background:white;
-  color:black;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  margin:40px auto;
-  cursor:pointer;
-}
-
-.menu{
-  position:fixed;
-  bottom:0;
-  width:100%;
-  display:flex;
-  justify-content:space-around;
-  background:#1a1a1a;
-  padding:12px;
-}
-</style>
-</head>
-
-<body>
-
-<div class="title">🔥 Pv App</div>
-<div class="screen" id="screen">Home</div>
-<div class="coins" id="coins">0.00 PV</div>
-
-<div class="tap" id="tapBtn">TAP</div>
-
-<div class="menu">
-  <div id="homeBtn">Home</div>
-  <div id="profileBtn">Profile</div>
-  <div id="marketBtn">Market</div>
-</div>
-
-<script>
-const tg = window.Telegram.WebApp;
-tg.ready();
-tg.expand();
-
-function getId(){
-  return tg.initDataUnsafe?.user?.id || null;
-}
-
-/* TAP */
-document.getElementById("tapBtn").onclick = () => {
-  const id = getId();
-
-  if(!id){
-    alert("NO USER");
-    return;
-  }
-
-  fetch("/tap", {
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body: JSON.stringify({ id })
-  })
-  .then(r=>r.json())
-  .then(d=>{
-    document.getElementById("coins").innerText =
-      d.coins.toFixed(2) + " PV";
-  });
-};
-
-/* HOME */
-document.getElementById("homeBtn").onclick = () => {
-  document.getElementById("screen").innerText = "Home";
-};
-
-/* PROFILE */
-document.getElementById("profileBtn").onclick = () => {
-  const id = getId();
-
-  if(!id){
-    alert("NO USER");
-    return;
-  }
-
-  fetch("/profile", {
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body: JSON.stringify({ id })
-  })
-  .then(r=>r.json())
-  .then(d=>{
-    document.getElementById("screen").innerText =
-      "ID: " + d.id + " | Coins: " + d.coins.toFixed(2);
-  });
-};
-
-/* MARKET */
-document.getElementById("marketBtn").onclick = () => {
-  document.getElementById("screen").innerText = "Market soon";
-};
-</script>
-
-</body>
-</html>
   `);
 });
 
-/* ================= BOT ================= */
+/* ===== BOT ===== */
 bot.start((ctx) => {
   ctx.reply("🔥 Pv App", {
     reply_markup: {
@@ -346,7 +215,7 @@ bot.start((ctx) => {
 bot.telegram.deleteWebhook();
 bot.launch();
 
-/* ================= SERVER ================= */
+/* ===== SERVER ===== */
 app.listen(process.env.PORT || 3000, () => {
   console.log("Server started");
 });
