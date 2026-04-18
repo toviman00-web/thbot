@@ -5,7 +5,7 @@ const sqlite3 = require("sqlite3").verbose();
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const app = express();
 
-/* ================= DB ================= */
+/* ================= DATABASE ================= */
 const db = new sqlite3.Database("./data.db");
 
 db.run(`
@@ -54,28 +54,33 @@ body{
 }
 
 .title{
-  font-size:28px;
+  font-size:26px;
   margin-top:20px;
 }
 
 .coins{
-  font-size:40px;
-  margin-top:20px;
+  font-size:42px;
+  margin-top:25px;
 }
 
 .tap{
-  width:160px;
-  height:160px;
+  width:170px;
+  height:170px;
   border-radius:50%;
   background:white;
   color:black;
   display:flex;
   align-items:center;
   justify-content:center;
-  margin:50px auto;
+  margin:60px auto;
   font-size:22px;
   cursor:pointer;
   user-select:none;
+  transition:0.1s;
+}
+
+.tap:active{
+  transform:scale(0.9);
 }
 </style>
 
@@ -90,26 +95,35 @@ body{
 <div class="tap" onclick="tap()">TAP</div>
 
 <script>
-let tg = window.Telegram.WebApp;
-tg.expand();
+let tg = window.Telegram?.WebApp;
+
+if(!tg){
+  alert("Відкрий через Telegram");
+}
+
+tg?.expand();
 
 function getId(){
-  return tg.initDataUnsafe?.user?.id;
+  return tg?.initDataUnsafe?.user?.id || null;
 }
 
 function tap(){
   const id = getId();
 
   if(!id){
-    alert("Відкрий через Telegram");
+    alert("❌ No Telegram user detected");
     return;
   }
 
-  fetch('/tap/' + id)
+  fetch("/tap/" + id)
     .then(r => r.json())
     .then(data => {
       document.getElementById("coins").innerText =
         data.coins.toFixed(2) + " PV";
+    })
+    .catch(err => {
+      console.log(err);
+      alert("Server error");
     });
 }
 </script>
@@ -140,7 +154,7 @@ bot.start((ctx) => {
       keyboard: [
         [
           {
-            text: "🎮 Open App",
+            text: "🎮 Open Pv App",
             web_app: {
               url: process.env.WEBAPP_URL
             }
