@@ -7,7 +7,7 @@ const app = express();
 
 app.use(express.json());
 
-/* ================= DATABASE ================= */
+/* ================= DB ================= */
 const db = new sqlite3.Database("./data.db");
 
 db.run(`
@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS users (
 )
 `);
 
+/* ================= FUNCTIONS ================= */
 function getUser(id, cb) {
   db.get("SELECT * FROM users WHERE id = ?", [id], (err, row) => {
     if (!row) {
@@ -128,7 +129,7 @@ document.getElementById("tapBtn").onclick = () => {
   const id = getId();
 
   if(!id){
-    alert("NO USER (open via Telegram)");
+    alert("NO USER");
     return;
   }
 
@@ -201,7 +202,7 @@ bot.start((ctx) => {
 bot.telegram.deleteWebhook();
 bot.launch();
 
-/* ================= SERVER ================= */
+/* ================= START ================= */
 app.listen(process.env.PORT || 3000, () => {
   console.log("Server started");
 });
