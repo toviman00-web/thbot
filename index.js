@@ -1,4 +1,3 @@
-console.log("TOKEN:", process.env.BOT_TOKEN);
 const { Telegraf } = require("telegraf");
 const express = require("express");
 const sqlite3 = require("sqlite3").verbose();
@@ -8,7 +7,7 @@ const app = express();
 
 app.use(express.json());
 
-/* ================= DB ================= */
+/* ================= DATABASE ================= */
 const db = new sqlite3.Database("./data.db");
 
 db.run(`
@@ -58,7 +57,7 @@ app.get("/", (req, res) => {
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pv Game</title>
+<title>Pv App</title>
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
@@ -102,8 +101,8 @@ body{
 
 <body>
 
-<div class="title">🔥 Pv Game</div>
-<div class="screen" id="screen">Loading...</div>
+<div class="title">🔥 Pv App</div>
+<div class="screen" id="screen">Home</div>
 <div class="coins" id="coins">0.00 PV</div>
 
 <div class="tap" id="tapBtn">TAP</div>
@@ -116,23 +115,20 @@ body{
 
 <script>
 const tg = window.Telegram.WebApp;
+
 tg.ready();
 tg.expand();
-
-/* DEBUG */
-console.log("TG:", tg);
-console.log("user:", tg.initDataUnsafe?.user);
 
 function getId(){
   return tg.initDataUnsafe?.user?.id || null;
 }
 
-/* ===== TAP ===== */
-document.getElementById("tapBtn").addEventListener("click", () => {
+/* TAP */
+document.getElementById("tapBtn").onclick = () => {
   const id = getId();
 
   if(!id){
-    alert("NO USER");
+    alert("NO USER (open via Telegram)");
     return;
   }
 
@@ -145,18 +141,16 @@ document.getElementById("tapBtn").addEventListener("click", () => {
   .then(d=>{
     document.getElementById("coins").innerText =
       d.coins.toFixed(2) + " PV";
-
-    document.getElementById("screen").innerText = "TAP +0.01";
   });
-});
+};
 
-/* ===== HOME ===== */
-document.getElementById("homeBtn").addEventListener("click", () => {
+/* HOME */
+document.getElementById("homeBtn").onclick = () => {
   document.getElementById("screen").innerText = "Home";
-});
+};
 
-/* ===== PROFILE ===== */
-document.getElementById("profileBtn").addEventListener("click", () => {
+/* PROFILE */
+document.getElementById("profileBtn").onclick = () => {
   const id = getId();
 
   if(!id){
@@ -174,25 +168,40 @@ document.getElementById("profileBtn").addEventListener("click", () => {
     document.getElementById("screen").innerText =
       "ID: " + d.id + " | Coins: " + d.coins.toFixed(2);
   });
-});
+};
 
-/* ===== MARKET ===== */
-document.getElementById("marketBtn").addEventListener("click", () => {
+/* MARKET */
+document.getElementById("marketBtn").onclick = () => {
   document.getElementById("screen").innerText = "Market soon";
-});
-
-/* INIT */
-document.getElementById("screen").innerText = "Home";
+};
 </script>
 
 </body>
 </html>
   `);
 });
+
+/* ================= BOT ================= */
+bot.start((ctx) => {
+  ctx.reply("🔥 Pv App", {
+    reply_markup: {
+      keyboard: [[
+        {
+          text: "🎮 Open App",
+          web_app: {
+            url: process.env.WEBAPP_URL
+          }
+        }
+      ]],
+      resize_keyboard: true
+    }
+  });
 });
+
 bot.telegram.deleteWebhook();
 bot.launch();
 
+/* ================= SERVER ================= */
 app.listen(process.env.PORT || 3000, () => {
   console.log("Server started");
 });
