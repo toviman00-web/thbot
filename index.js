@@ -393,7 +393,51 @@ ${link}`,
 
 bot.telegram.deleteWebhook();
 bot.launch();
+const ADMIN_ID = 123456789; // <-- сюди свій Telegram ID
 
+bot.command("users", (ctx) => {
+  if (ctx.from.id !== ADMIN_ID) return;
+
+  db.all("SELECT * FROM users", [], (err, rows) => {
+    let text = "👥 Players:\n\n";
+
+    rows.forEach(u => {
+      text += `ID: ${u.id}\nCoins: ${u.coins}\n\n`;
+    });
+
+    ctx.reply(text || "no users");
+  });
+});
+
+bot.command("give", (ctx) => {
+  if (ctx.from.id !== ADMIN_ID) return;
+
+  const parts = ctx.message.text.split(" ");
+  const id = parts[1];
+  const amount = parseFloat(parts[2]);
+
+  if (!id || !amount) {
+    return ctx.reply("use: /give id amount");
+  }
+
+  db.run(
+    "UPDATE users SET coins = coins + ? WHERE id = ?",
+    [amount, id],
+    () => ctx.reply(`✅ +${amount} PV to ${id}`)
+  );
+});
+
+bot.command("stats", (ctx) => {
+  if (ctx.from.id !== ADMIN_ID) return;
+
+  const id = ctx.message.text.split(" ")[1];
+
+  db.get("SELECT * FROM users WHERE id = ?", [id], (err, row) => {
+    if (!row) return ctx.reply("not found");
+
+    ctx.reply(`ID: ${row.id}\nCoins: ${row.coins}`);
+  });
+});
 /* ================= SERVER ================= */
 app.listen(process.env.PORT || 3000, () => {
   console.log("Server started");
