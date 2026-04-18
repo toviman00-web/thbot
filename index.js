@@ -53,107 +53,27 @@ app.post("/profile", (req, res) => {
 
 /* ================= WEB APP ================= */
 app.get("/", (req, res) => {
-  res.send(`
+  res.setHeader("Content-Type", "text/html");
+
+  res.end(`
 <!DOCTYPE html>
 <html>
-<head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pv App</title>
-
-<style>
-body{
-  margin:0;
-  font-family:Arial;
-  background:#0f0f0f;
-  color:white;
-  text-align:center;
-}
-
-.title{font-size:24px;margin-top:15px;}
-.screen{margin-top:10px;opacity:0.8;}
-.coins{font-size:40px;margin-top:20px;}
-
-.tap{
-  width:160px;height:160px;
-  border-radius:50%;
-  background:white;
-  color:black;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  margin:40px auto;
-  cursor:pointer;
-}
-
-.menu{
-  position:fixed;
-  bottom:0;
-  width:100%;
-  display:flex;
-  justify-content:space-around;
-  background:#1a1a1a;
-  padding:12px;
-}
-</style>
-
-</head>
-
 <body>
-
-<div class="title">🔥 Pv App</div>
-
-<div class="screen" id="screen">Home</div>
-
-<div class="coins" id="coins">0.00 PV</div>
-
-<div class="tap" onclick="tap()">TAP</div>
-
-<div class="menu">
-  <div onclick="openTab('home')">Home</div>
-  <div onclick="openTab('profile')">Profile</div>
-  <div onclick="openTab('market')">Market</div>
-</div>
+<h3>Loading...</h3>
 
 <script>
-let tg = window.Telegram?.WebApp;
-tg?.expand();
+setTimeout(() => {
+  const tg = window.Telegram?.WebApp;
 
-/* DEBUG */
-console.log("initData:", tg?.initData);
-console.log("user:", tg?.initDataUnsafe?.user);
-
-/* USER */
-function getUserId() {
-  return tg?.initDataUnsafe?.user?.id || null;
-}
-
-/* TAP */
-function tap() {
-  const id = getUserId();
-
-  if (!id) {
-    alert("NO USER DETECTED");
-    return;
-  }
-
-  fetch("/tap", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id })
-  })
-  .then(r => r.json())
-  .then(d => {
-    document.getElementById("coins").innerText =
-      d.coins.toFixed(2) + " PV";
-  });
-}
+  alert("initData:\\n" + tg?.initData);
+  alert("user:\\n" + JSON.stringify(tg?.initDataUnsafe?.user));
+}, 1000);
 </script>
 
 </body>
 </html>
   `);
 });
-
 /* ================= BOT ================= */
 bot.start((ctx) => {
   ctx.reply("🔥 Pv App", {
