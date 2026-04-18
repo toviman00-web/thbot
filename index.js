@@ -62,13 +62,12 @@ app.get("/", (req, res) => {
 <style>
 body{
   margin:0;
-  background:#0f0f0f;
-  color:white;
   font-family:Arial;
+  background:linear-gradient(180deg,#0f2027,#203a43,#2c5364);
+  color:white;
   text-align:center;
 }
 
-/* сторінки */
 .page{
   display:none;
   height:80vh;
@@ -81,18 +80,39 @@ body{
   display:flex;
 }
 
-/* кнопка */
+.coins{
+  font-size:36px;
+  margin:10px;
+  font-weight:bold;
+}
+
 .tap{
-  width:150px;
-  height:150px;
+  width:160px;
+  height:160px;
   border-radius:50%;
-  background:white;
+  background:linear-gradient(145deg,#ffffff,#dcdcdc);
   color:black;
   display:flex;
   align-items:center;
   justify-content:center;
   margin:20px;
+  font-size:22px;
+  font-weight:bold;
   cursor:pointer;
+  box-shadow:0 0 20px rgba(255,255,255,0.4);
+  transition:0.1s;
+}
+
+.tap:active{
+  transform:scale(0.9);
+}
+
+.card{
+  background:rgba(255,255,255,0.1);
+  padding:20px;
+  border-radius:15px;
+  width:80%;
+  max-width:300px;
 }
 
 .menu{
@@ -101,36 +121,50 @@ body{
   width:100%;
   display:flex;
   justify-content:space-around;
-  background:#1a1a1a;
-  padding:10px;
+  background:rgba(0,0,0,0.6);
+  padding:12px;
+}
+
+.menu div{
+  padding:10px 15px;
+  border-radius:10px;
+  background:rgba(255,255,255,0.1);
+  cursor:pointer;
+}
+
+.activeBtn{
+  background:#00ffcc !important;
+  color:black;
 }
 </style>
 </head>
 
 <body>
 
-<!-- HOME -->
 <div id="home" class="page active">
-  <div id="coins">0.00 PV</div>
+  <div class="coins" id="coins">0.00 PV</div>
   <div class="tap" id="tapBtn">TAP</div>
 </div>
 
-<!-- PROFILE -->
 <div id="profile" class="page">
-  <div id="pid">ID: ...</div>
-  <div id="pcoins">Balance: ...</div>
+  <div class="card">
+    <h3>Profile</h3>
+    <p id="pid">ID: ...</p>
+    <p id="pcoins">Balance: ...</p>
+  </div>
 </div>
 
-<!-- MARKET -->
 <div id="market" class="page">
-  <div>Market soon</div>
+  <div class="card">
+    <h3>Market</h3>
+    <p>Soon...</p>
+  </div>
 </div>
 
-<!-- MENU -->
 <div class="menu">
-  <div id="btnHome">Home</div>
-  <div id="btnProfile">Profile</div>
-  <div id="btnMarket">Market</div>
+  <div id="btnHome">🏠</div>
+  <div id="btnProfile">👤</div>
+  <div id="btnMarket">🛒</div>
 </div>
 
 <script>
@@ -142,20 +176,27 @@ function getId(){
   return tg.initDataUnsafe?.user?.id;
 }
 
-/* перемикання */
-function openPage(id){
+function setActive(btn){
+  document.querySelectorAll(".menu div").forEach(b => b.classList.remove("activeBtn"));
+  btn.classList.add("activeBtn");
+}
+
+function openPage(id, btn){
   document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
   document.getElementById(id).classList.add("active");
+  setActive(btn);
 
   if(id === "profile") loadProfile();
 }
 
-/* кнопки */
-document.getElementById("btnHome").onclick = () => openPage("home");
-document.getElementById("btnProfile").onclick = () => openPage("profile");
-document.getElementById("btnMarket").onclick = () => openPage("market");
+const homeBtn = document.getElementById("btnHome");
+const profileBtn = document.getElementById("btnProfile");
+const marketBtn = document.getElementById("btnMarket");
 
-/* tap */
+homeBtn.onclick = () => openPage("home", homeBtn);
+profileBtn.onclick = () => openPage("profile", profileBtn);
+marketBtn.onclick = () => openPage("market", marketBtn);
+
 document.getElementById("tapBtn").onclick = () => {
   const id = getId();
   if(!id) return alert("NO USER");
@@ -172,7 +213,6 @@ document.getElementById("tapBtn").onclick = () => {
   });
 };
 
-/* profile */
 function loadProfile(){
   const id = getId();
   if(!id) return;
