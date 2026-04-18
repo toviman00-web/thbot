@@ -52,7 +52,154 @@ app.post("/profile", (req, res) => {
 
 /* ================= WEB APP ================= */
 app.get("/", (req, res) => {
-  res.send(`
+  res.send(`<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pv App</title>
+
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+<style>
+body{
+  margin:0;
+  font-family:Arial;
+  background:#0f0f0f;
+  color:white;
+  text-align:center;
+}
+
+/* ЕКРАНИ */
+.page{
+  display:none;
+  height:80vh;
+  justify-content:center;
+  align-items:center;
+  flex-direction:column;
+}
+
+.active{
+  display:flex;
+}
+
+/* ТАПАЛКА */
+.tap{
+  width:160px;
+  height:160px;
+  border-radius:50%;
+  background:white;
+  color:black;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  margin:20px auto;
+  cursor:pointer;
+}
+
+/* БАЛАНС */
+.coins{
+  font-size:40px;
+  margin:10px;
+}
+
+/* НИЖНЄ МЕНЮ */
+.menu{
+  position:fixed;
+  bottom:0;
+  width:100%;
+  display:flex;
+  justify-content:space-around;
+  background:#1a1a1a;
+  padding:12px;
+}
+</style>
+</head>
+
+<body>
+
+<!-- HOME -->
+<div id="home" class="page active">
+  <div class="coins" id="coins">0.00 PV</div>
+  <div class="tap" id="tapBtn">TAP</div>
+</div>
+
+<!-- PROFILE -->
+<div id="profile" class="page">
+  <div id="profileId">ID: ...</div>
+  <div id="profileCoins">Balance: ...</div>
+</div>
+
+<!-- MARKET -->
+<div id="market" class="page">
+  <div>Market soon</div>
+</div>
+
+<!-- MENU -->
+<div class="menu">
+  <div onclick="openPage('home')">Home</div>
+  <div onclick="openPage('profile')">Profile</div>
+  <div onclick="openPage('market')">Market</div>
+</div>
+
+<script>
+const tg = window.Telegram.WebApp;
+tg.ready();
+tg.expand();
+
+function getId(){
+  return tg.initDataUnsafe?.user?.id || null;
+}
+
+/* ПЕРЕМИКАННЯ СТОРІНОК */
+function openPage(page){
+  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+  document.getElementById(page).classList.add("active");
+
+  if(page === "profile"){
+    loadProfile();
+  }
+}
+
+/* TAP */
+document.getElementById("tapBtn").onclick = () => {
+  const id = getId();
+  if(!id) return alert("NO USER");
+
+  fetch("/tap", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ id })
+  })
+  .then(r=>r.json())
+  .then(d=>{
+    document.getElementById("coins").innerText =
+      d.coins.toFixed(2) + " PV";
+  });
+};
+
+/* PROFILE LOAD */
+function loadProfile(){
+  const id = getId();
+  if(!id) return;
+
+  fetch("/profile", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ id })
+  })
+  .then(r=>r.json())
+  .then(d=>{
+    document.getElementById("profileId").innerText =
+      "ID: " + d.id;
+
+    document.getElementById("profileCoins").innerText =
+      "Balance: " + d.coins.toFixed(2) + " PV";
+  });
+}
+</script>
+
+</body>
+</html>
 <!DOCTYPE html>
 <html>
 <head>
