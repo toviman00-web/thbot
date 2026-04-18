@@ -4,6 +4,7 @@ const express = require("express");
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const app = express();
 
+/* 🌐 WEB APP */
 app.get("/", (req, res) => {
   res.send(`
 <!DOCTYPE html>
@@ -67,11 +68,35 @@ app.get("/", (req, res) => {
 </html>
   `);
 });
-console.log("BOT TOKEN:8750192272:AAEV20ZeZBj88fEfc9K9_wSh_nErYXErTRY", process.env.BOT_TOKEN);
-bot.catch((err) => {
-  console.log("BOT ERROR:", err);
+
+/* 🌐 SERVER */
+app.listen(process.env.PORT || 3000, () => {
+  console.log("Server started");
 });
-console.log("TOKEN:", process.env.BOT_TOKEN);
-console.log("BOT STARTING...");
+
+/* 🤖 BOT */
+bot.start((ctx) => {
+  ctx.reply("🚀 Pv App", {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          {
+            text: "Відкрити App",
+            web_app: {
+              url: process.env.WEBAPP_URL
+            }
+          }
+        ]
+      ]
+    }
+  });
+});
+
+/* запуск */
 bot.launch();
+
+/* захист від крашів */
+process.once("SIGINT", () => bot.stop("SIGINT"));
+process.once("SIGTERM", () => bot.stop("SIGTERM"));
+
 console.log("BOT STARTED");
