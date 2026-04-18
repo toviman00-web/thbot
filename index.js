@@ -1,3 +1,4 @@
+console.log("TOKEN:", process.env.BOT_TOKEN);
 const { Telegraf } = require("telegraf");
 const express = require("express");
 const sqlite3 = require("sqlite3").verbose();
