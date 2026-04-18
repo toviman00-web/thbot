@@ -17,7 +17,6 @@ CREATE TABLE IF NOT EXISTS users (
 )
 `);
 
-/* ================= FUNCTIONS ================= */
 function getUser(id, cb) {
   db.get("SELECT * FROM users WHERE id = ?", [id], (err, row) => {
     if (!row) {
@@ -116,7 +115,6 @@ body{
 
 <script>
 const tg = window.Telegram.WebApp;
-
 tg.ready();
 tg.expand();
 
@@ -186,9 +184,6 @@ document.getElementById("marketBtn").onclick = () => {
 bot.start((ctx) => {
   ctx.reply("🔥 Pv App", {
     reply_markup: {
-     bot.start((ctx) => {
-  ctx.reply("🔥 Pv App", {
-    reply_markup: {
       inline_keyboard: [[
         {
           text: "🎮 Open App",
@@ -200,15 +195,11 @@ bot.start((ctx) => {
     }
   });
 });
-      resize_keyboard: true
-    }
-  });
-});
 
 bot.telegram.deleteWebhook();
 bot.launch();
 
-/* ================= START ================= */
+/* ================= SERVER ================= */
 app.listen(process.env.PORT || 3000, () => {
   console.log("Server started");
 });
