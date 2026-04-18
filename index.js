@@ -1,32 +1,45 @@
 const { Telegraf } = require("telegraf");
 const express = require("express");
 const sqlite3 = require("sqlite3").verbose();
+const path = require("path");
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const app = express();
 
 app.use(express.json());
 
-/* ===== DB ===== */
-const db = new sqlite3.Database("./data.db");
+/* ===== DB (СТАБІЛЬНА) ===== */
+const db = new sqlite3.Database(path.join(__dirname, "data.db"));
 
-db.run(`
-CREATE TABLE IF NOT EXISTS users (
-  id INTEGER PRIMARY KEY,
-  coins REAL DEFAULT 0,
-  referrer INTEGER DEFAULT NULL,
-  skin TEXT DEFAULT 'default'
-)
-`);
+db.serialize(() => {
+  db.run(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY,
+      coins REAL DEFAULT 0,
+      referrer INTEGER DEFAULT NULL,
+      skin TEXT DEFAULT 'default'
+    )
+  `);
+});
 
 /* ===== USER ===== */
 function getUser(id, cb){
   db.get("SELECT * FROM users WHERE id = ?", [id], (err, row) => {
-    if(!row){
-      db.run("INSERT INTO users (id, coins) VALUES (?, 0)", [id]);
-      return cb({ id, coins: 0, skin: "default" });
-    }
-    cb(row);
+
+    if(row) return cb(row);
+
+    db.run(
+      "INSERT INTO users (id, coins, skin) VALUES (?, 0, 'default')",
+      [id],
+      () => {
+        cb({
+          id,
+          coins: 0,
+          skin: "default"
+        });
+      }
+    );
+
   });
 }
 
@@ -34,7 +47,10 @@ function getUser(id, cb){
 function addRefBonus(refId){
   if(!refId) return;
 
-  db.run("UPDATE users SET coins = coins + 25 WHERE id = ?", [refId]);
+  db.run(
+    "UPDATE users SET coins = coins + 25 WHERE id = ?",
+    [refId]
+  );
 }
 
 /* ===== TAP ===== */
@@ -46,7 +62,7 @@ function addCoins(id, cb){
   );
 }
 
-/* ===== TAP API ===== */
+/* ===== API ===== */
 app.post("/tap", (req, res) => {
   const id = req.body.id;
   if(!id) return res.json({ error: "no id" });
@@ -54,7 +70,6 @@ app.post("/tap", (req, res) => {
   addCoins(id, user => res.json(user));
 });
 
-/* ===== PROFILE API ===== */
 app.post("/profile", (req, res) => {
   const id = req.body.id;
   if(!id) return res.json({ error: "no id" });
@@ -62,7 +77,6 @@ app.post("/profile", (req, res) => {
   getUser(id, user => res.json(user));
 });
 
-/* ===== BUY SKIN ===== */
 app.post("/buy-skin", (req, res) => {
   const { id, skin } = req.body;
 
@@ -177,13 +191,11 @@ body{
 
 <body>
 
-<!-- HOME -->
 <div id="home" class="page active">
   <div class="coins" id="coins">0.00 PV</div>
   <div class="tap" id="tapBtn">TAP</div>
 </div>
 
-<!-- PROFILE -->
 <div id="profile" class="page">
   <div class="card">
     <p id="pid">ID</p>
@@ -191,19 +203,15 @@ body{
   </div>
 </div>
 
-<!-- MARKET -->
 <div id="market" class="page">
   <div class="card">
     <h3>Market</h3>
-
     <button onclick="buySkin('red')">🔴 Red Tap (10 PV)</button><br><br>
     <button onclick="buySkin('star')">⭐ Star Tap (20 PV)</button><br><br>
-
     <p id="skinInfo">Default skin</p>
   </div>
 </div>
 
-<!-- MENU -->
 <div class="menu">
   <div onclick="openPage('home')">Home</div>
   <div onclick="openPage('profile')">Profile</div>
@@ -219,7 +227,6 @@ function getId(){
   return tg.initDataUnsafe?.user?.id;
 }
 
-/* PAGES */
 function openPage(id){
   document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
   document.getElementById(id).classList.add("active");
