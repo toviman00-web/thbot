@@ -18,7 +18,8 @@ db.serialize(() => {
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY,
       coins REAL DEFAULT 0,
-      vip INTEGER DEFAULT 0,
+      vip TEXT DEFAULT 'none',
+      skin TEXT DEFAULT 'default',
       used_promo TEXT DEFAULT ''
     )
   `);
@@ -26,87 +27,101 @@ db.serialize(() => {
 
 /* ================= USER ================= */
 function getUser(id, cb){
-  db.get("SELECT * FROM users WHERE id = ?", [id], (err, row) => {
+  db.get("SELECT * FROM users WHERE id=?", [id], (e,row)=>{
     if(row) return cb(row);
 
     db.run(
-      "INSERT INTO users (id, coins) VALUES (?, 0)",
+      "INSERT INTO users (id,coins) VALUES (?,0)",
       [id],
-      () => cb({ id, coins: 0, vip: 0, used_promo: "" })
+      ()=>cb({id,coins:0,vip:"none",skin:"default"})
     );
   });
 }
 
-/* ================= COINS ================= */
-function addCoins(id, amount, notify=false){
-  db.run(
-    "UPDATE users SET coins = coins + ? WHERE id = ?",
-    [amount, id],
-    () => {
-      if(notify){
-        bot.telegram.sendMessage(id, `💎 +${amount} PV`).catch(()=>{});
-      }
-    }
-  );
+/* ================= TAP VALUE ================= */
+function getTapValue(user){
+  if(user.vip === "gold") return 20;
+  if(user.vip === "silver") return 5;
+  if(user.vip === "bronze") return 1;
+
+  if(user.skin === "coin") return 0.05;
+
+  return 0.01;
 }
 
 /* ================= TAP ================= */
-app.post("/tap", (req,res)=>{
+app.post("/tap",(req,res)=>{
   const id = req.body.id;
-  if(!id) return res.json({error:"no id"});
 
-  db.run(
-    "UPDATE users SET coins = coins + 0.01 WHERE id = ?",
-    [id],
-    () => getUser(id, u => res.json(u))
-  );
+  getUser(id,user=>{
+    const val = getTapValue(user);
+
+    db.run(
+      "UPDATE users SET coins = coins + ? WHERE id=?",
+      [val,id],
+      ()=>{
+        user.coins += val;
+        res.json(user);
+      }
+    );
+  });
 });
 
 /* ================= PROFILE ================= */
-app.post("/profile", (req,res)=>{
+app.post("/profile",(req,res)=>{
   const id = req.body.id;
 
-  getUser(id, user=>{
+  getUser(id,user=>{
     res.json({
       ...user,
-      refLink: `https://t.me/YOUR_BOT?start=${id}`
+      refLink:`https://t.me/YOUR_BOT?start=${id}`
     });
   });
 });
 
-/* ================= PROMO ================= */
-app.post("/promo", (req,res)=>{
-  const {id, code} = req.body;
+/* ================= BUY ================= */
+app.post("/buy",(req,res)=>{
+  const {id,item} = req.body;
 
-  getUser(id, user=>{
+  getUser(id,user=>{
 
-    if(user.used_promo.includes(code)){
-      return res.json({error:"already used"});
+    /* SKIN */
+    if(item==="coin"){
+      if(user.coins < 20) return res.json({error:"no money"});
+
+      db.run(
+        "UPDATE users SET coins=coins-20, skin='coin' WHERE id=?",
+        [id],
+        ()=>res.json({ok:true})
+      );
+      return;
     }
 
-    let reward = 0;
-
-    if(code === "open") reward = 50;
-    if(code === "1may") reward = 10;
-
-    if(!reward){
-      return res.json({error:"invalid"});
+    /* VIP */
+    if(item==="bronze"){
+      db.run("UPDATE users SET vip='bronze' WHERE id=?",[id],
+      ()=>res.json({ok:true}));
+      return;
     }
 
-    db.run(
-      "UPDATE users SET coins = coins + ?, used_promo = used_promo || ? WHERE id = ?",
-      [reward, code+",", id],
-      ()=>{
-        addCoins(id, 0);
-        res.json({ok:true, reward});
-      }
-    );
+    if(item==="silver"){
+      db.run("UPDATE users SET vip='silver' WHERE id=?",[id],
+      ()=>res.json({ok:true}));
+      return;
+    }
+
+    if(item==="gold"){
+      db.run("UPDATE users SET vip='gold' WHERE id=?",[id],
+      ()=>res.json({ok:true}));
+      return;
+    }
+
   });
 });
 
 /* ================= WEB ================= */
-app.get("/", (req,res)=>{
-  res.send(`
+app.get("/",(req,res)=>{
+res.send(`
 <!DOCTYPE html>
 <html>
 <head>
@@ -127,9 +142,9 @@ body{
 
 .tap{
   width:150px;height:150px;
-  border-radius:50%;
   background:white;
   color:#1e3c72;
+  border-radius:50%;
   margin:40px auto;
   display:flex;
   align-items:center;
@@ -137,7 +152,6 @@ body{
   font-weight:bold;
 }
 
-/* MENU */
 .menu{
   position:fixed;
   bottom:0;
@@ -154,12 +168,23 @@ body{
   border-radius:10px;
 }
 
-/* INPUT */
-input,button{
-  padding:10px;
+.grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+  padding:20px;
+}
+
+.item{
+  background:rgba(255,255,255,0.15);
+  padding:20px;
+  border-radius:12px;
+}
+button{
   margin-top:10px;
+  padding:8px;
   border:none;
-  border-radius:10px;
+  border-radius:8px;
 }
 </style>
 </head>
@@ -176,18 +201,35 @@ input,button{
 <div id="profile" class="page">
   <h3 id="pid"></h3>
   <h3 id="pcoins"></h3>
-
-  <h4>Promo code</h4>
-  <input id="code" placeholder="enter code">
-  <button onclick="sendPromo()">Apply</button>
-
-  <p id="ref"></p>
 </div>
 
 <!-- MARKET -->
 <div id="market" class="page">
   <h2>Market</h2>
-  <p>Coming soon</p>
+
+  <div class="grid">
+    <div class="item">
+      🪙 Coin Skin<br>20 PV<br>
+      <button onclick="buy('coin')">Buy</button>
+    </div>
+
+    <div class="item">
+      VIP Bronze<br>5💎<br>
+      <button onclick="buy('bronze')">Buy</button>
+    </div>
+
+    <div class="item">
+      VIP Silver<br>10💎<br>
+      <button onclick="buy('silver')">Buy</button>
+    </div>
+
+    <div class="item">
+      VIP Gold<br>50💎<br>
+      <button onclick="buy('gold')">Buy</button>
+    </div>
+  </div>
+
+  <p>Coming Soon</p>
 </div>
 
 <!-- MENU -->
@@ -232,17 +274,13 @@ function loadProfile(){
   .then(d=>{
     document.getElementById("pid").innerText="ID: "+d.id;
     document.getElementById("pcoins").innerText="Balance: "+d.coins.toFixed(2);
-    document.getElementById("ref").innerText="Ref: "+d.refLink;
   });
 }
 
-function sendPromo(){
-  fetch("/promo",{method:"POST",
+function buy(item){
+  fetch("/buy",{method:"POST",
     headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({
-      id:id(),
-      code:document.getElementById("code").value
-    })
+    body:JSON.stringify({id:id(),item:item})
   })
   .then(r=>r.json())
   .then(d=>alert(JSON.stringify(d)));
@@ -256,68 +294,15 @@ function sendPromo(){
 
 /* ================= BOT ================= */
 bot.start((ctx)=>{
-  const id = ctx.from.id;
-
   ctx.reply("🔥 Pv App",{
     reply_markup:{
       inline_keyboard:[[
-        {text:"OPEN APP", web_app:{url:process.env.WEBAPP_URL+"?ref="+id}}
+        {text:"OPEN APP", web_app:{url:process.env.WEBAPP_URL}}
       ]]
     }
   });
 });
 
-/* ================= ADMIN COMMANDS ================= */
-function adminOnly(ctx){
-  return ctx.from.id === ADMIN_ID;
-}
-
-/* GIVE */
-bot.command("give",(ctx)=>{
-  if(!adminOnly(ctx)) return;
-
-  const [,id,amt]=ctx.message.text.split(" ");
-
-  db.run("UPDATE users SET coins = coins + ? WHERE id=?",[amt,id],
-  ()=>ctx.reply("done"));
-});
-
-/* TAKE */
-bot.command("take",(ctx)=>{
-  if(!adminOnly(ctx)) return;
-
-  const [,id,amt]=ctx.message.text.split(" ");
-
-  db.run("UPDATE users SET coins = coins - ? WHERE id=?",[amt,id],
-  ()=>ctx.reply("done"));
-});
-
-/* VIP */
-bot.command("vip",(ctx)=>{
-  if(!adminOnly(ctx)) return;
-
-  const id = ctx.message.text.split(" ")[1];
-
-  db.run("UPDATE users SET vip = 1 WHERE id=?",[id],
-  ()=>ctx.reply("VIP granted"));
-});
-
-/* STATS */
-bot.command("stats",(ctx)=>{
-  if(!adminOnly(ctx)) return;
-
-  const id = ctx.message.text.split(" ")[1];
-
-  db.get("SELECT * FROM users WHERE id=?",[id],(e,u)=>{
-    ctx.reply(`ID: ${u.id}
-Coins: ${u.coins}
-VIP: ${u.vip}`);
-  });
-});
-
 bot.launch();
 
-/* ================= SERVER ================= */
-app.listen(process.env.PORT||3000,()=>{
-  console.log("Server started");
-});
+app.listen(process.env.PORT||3000,()=>console.log("Server started"));
