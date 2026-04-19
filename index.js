@@ -3,12 +3,12 @@ const express = require("express");
 const sqlite3 = require("sqlite3").verbose();
 const path = require("path");
 
-const bot = new Telegraf(process.env.BOT_TOKEN);
+const bot = new Telegraf(process.env.8750192272:AAEV20ZeZBj88fEfc9K9_wSh_nErYXErTRY);
 const app = express();
 
 app.use(express.json());
 
-/* ================= DB ================= */
+/* ================= DATABASE ================= */
 const db = new sqlite3.Database(path.join(__dirname, "data.db"));
 
 db.serialize(() => {
@@ -180,24 +180,6 @@ body{
 
 .tap:active{transform:scale(0.9);}
 
-.star{
-  width:160px;
-  height:160px;
-  background:gold;
-  clip-path:polygon(
-    50% 0%,
-    61% 35%,
-    98% 35%,
-    68% 57%,
-    79% 91%,
-    50% 70%,
-    21% 91%,
-    32% 57%,
-    2% 35%,
-    39% 35%
-  );
-}
-
 .plus{
   position:absolute;
   color:#00ff99;
@@ -262,7 +244,6 @@ body{
 <div id="market" class="page">
   <div class="card">
     <h3>Market</h3>
-
     <button onclick="buySkin('red')">🔴 Red - 10 PV</button><br><br>
     <button onclick="buySkin('star')">⭐ Star - 25 PV</button>
   </div>
@@ -284,14 +265,12 @@ function id(){
   return tg.initDataUnsafe?.user?.id;
 }
 
-/* NAV */
 function openPage(p){
   document.querySelectorAll(".page").forEach(e=>e.classList.remove("active"));
   document.getElementById(p).classList.add("active");
   if(p==="profile") loadProfile();
 }
 
-/* TAP */
 document.getElementById("tapBtn").onclick = () => {
   const userId = id();
   if(!userId) return;
@@ -314,7 +293,6 @@ document.getElementById("tapBtn").onclick = () => {
   });
 };
 
-/* PROFILE */
 function loadProfile(){
   fetch("/profile", {
     method:"POST",
@@ -328,7 +306,6 @@ function loadProfile(){
   });
 }
 
-/* SKIN */
 function buySkin(skin){
   fetch("/buy-skin", {
     method:"POST",
@@ -337,7 +314,6 @@ function buySkin(skin){
   });
 }
 
-/* PROMO */
 function sendPromo(){
   const code=document.getElementById("promo").value;
 
@@ -359,37 +335,72 @@ bot.start((ctx) => {
   ctx.reply("🔥 Pv App", {
     reply_markup: {
       inline_keyboard: [[
-        { text: "Open App", web_app: { url: process.env.WEBAPP_URL } }
+        { text: "Open App", web_app: { url: process.env. https://thbot-production.up.railway.app } }
       ]]
     }
   });
 });
 
 /* ================= ADMIN ================= */
-const ADMIN_ID = 123456789;
+const ADMIN_ID = 123456789; // ВСТАВ СВІЙ ID
 
 bot.command("users", (ctx) => {
-  if (ctx.from.id !== ADMIN_ID) return;
+  if (ctx.from.id !== 1642108682) return;
 
-  db.all("SELECT * FROM users", [], (err, rows) => {
+  db.all("SELECT * FROM users ORDER BY coins DESC", [], (err, rows) => {
+    if (!rows.length) return ctx.reply("No users");
+
     let text = "👥 USERS\n\n";
     rows.forEach(u => {
       text += `ID: ${u.id} | ${u.coins}\n`;
     });
+
     ctx.reply(text);
+  });
+});
+
+bot.command("stats", (ctx) => {
+  if (ctx.from.id !== 1642108682) return;
+
+  const id = ctx.message.text.split(" ")[1];
+
+  db.get("SELECT * FROM users WHERE id = ?", [id], (err, row) => {
+    if (!row) return ctx.reply("User not found");
+
+    ctx.reply(`ID: ${row.id}\nCoins: ${row.coins}`);
   });
 });
 
 bot.command("give", (ctx) => {
   if (ctx.from.id !== 1642108682) return;
 
-  const [_, id, amount] = ctx.message.text.split(" ");
+  const parts = ctx.message.text.split(" ");
+  const id = parseInt(parts[1]);
+  const amount = parseFloat(parts[2]);
 
-  db.run(
-    "UPDATE users SET coins = coins + ? WHERE id = ?",
-    [amount, id],
-    () => ctx.reply("done")
-  );
+  if (!id || !amount) {
+    return ctx.reply("Use: /give id amount");
+  }
+
+  db.get("SELECT * FROM users WHERE id = ?", [id], (err, user) => {
+    if (!user) {
+      return ctx.reply("❌ User not found (open app first)");
+    }
+
+    db.run(
+      "UPDATE users SET coins = coins + ? WHERE id = ?",
+      [amount, id],
+      () => {
+        db.get("SELECT coins FROM users WHERE id = ?", [id], (err, updated) => {
+          ctx.reply(\`✅ Done
+
+ID: \${id}
++\${amount} PV
+New balance: \${updated.coins}\`);
+        });
+      }
+    );
+  });
 });
 
 bot.telegram.deleteWebhook();
