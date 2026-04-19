@@ -29,9 +29,11 @@ function getUser(id, cb){
   db.get("SELECT * FROM users WHERE id = ?", [id], (err, row) => {
     if(row) return cb(row);
 
-    db.run("INSERT INTO users (id, coins) VALUES (?, 0)", [id], () => {
-      cb({ id, coins: 0, used_promo: "" });
-    });
+    db.run(
+      "INSERT INTO users (id, coins) VALUES (?, 0)",
+      [id],
+      () => cb({ id, coins: 0, used_promo: "" })
+    );
   });
 }
 
@@ -93,9 +95,9 @@ app.post("/promo", (req,res)=>{
 
     db.run(
       "UPDATE users SET coins = coins + ?, used_promo = used_promo || ? WHERE id = ?",
-      [reward, code + ",", id],
+      [reward, code+",", id],
       ()=>{
-        addCoins(id, 0); // sync
+        addCoins(id, reward, true);
         res.json({ok:true, reward});
       }
     );
@@ -115,8 +117,8 @@ app.get("/", (req,res)=>{
 body{
   margin:0;
   font-family:Arial;
-  background:linear-gradient(135deg,#1e3c72,#2a5298);
   color:white;
+  background:#1e3c72; /* ОДИН СИНІЙ БЕЗ ПЛИТОК */
   text-align:center;
 }
 
@@ -124,16 +126,21 @@ body{
 .active{display:block;}
 
 .tap{
-  width:150px;height:150px;
+  width:160px;
+  height:160px;
+  margin:40px auto;
   border-radius:50%;
   background:white;
   color:#1e3c72;
-  margin:40px auto;
   display:flex;
   align-items:center;
   justify-content:center;
   font-weight:bold;
+  font-size:20px;
+  transition:0.1s;
 }
+
+.tap:active{transform:scale(0.92);}
 
 .menu{
   position:fixed;
@@ -141,20 +148,21 @@ body{
   width:100%;
   display:flex;
   justify-content:space-around;
-  background:rgba(0,0,0,0.3);
+  background:rgba(0,0,0,0.25);
   padding:10px;
 }
 
 .menu div{
   padding:10px;
-  background:rgba(255,255,255,0.2);
+  background:rgba(255,255,255,0.15);
   border-radius:10px;
 }
+
 input,button{
   padding:10px;
   margin-top:10px;
-  border-radius:10px;
   border:none;
+  border-radius:10px;
 }
 </style>
 </head>
@@ -171,26 +179,33 @@ input,button{
 <div id="profile" class="page">
   <h3 id="pid"></h3>
   <h3 id="pcoins"></h3>
-  <p id="ref"></p>
+
+  <button onclick="copyRef()">📋 Copy referral</button>
+
+  <div style="margin-top:15px;">
+    <input id="code" placeholder="promo code">
+    <button onclick="sendPromo()">Apply</button>
+  </div>
 </div>
 
-<!-- PROMO -->
-<div id="promo" class="page">
-  <h2>Promo</h2>
-  <input id="code" placeholder="enter code">
-  <button onclick="sendPromo()">Apply</button>
+<!-- EARN -->
+<div id="earn" class="page">
+  <h2>Earn</h2>
+  <p>Tasks coming soon 📊</p>
 </div>
 
 <!-- MENU -->
 <div class="menu">
   <div onclick="openPage('home')">Home</div>
   <div onclick="openPage('profile')">Profile</div>
-  <div onclick="openPage('promo')">Promo</div>
+  <div onclick="openPage('earn')">Earn</div>
 </div>
 
 <script>
 const tg = window.Telegram.WebApp;
 tg.ready(); tg.expand();
+
+let refLink = "";
 
 function id(){
   return tg.initDataUnsafe?.user?.id;
@@ -223,8 +238,13 @@ function loadProfile(){
   .then(d=>{
     document.getElementById("pid").innerText="ID: "+d.id;
     document.getElementById("pcoins").innerText="Balance: "+d.coins.toFixed(2);
-    document.getElementById("ref").innerText="Ref: "+d.refLink;
+    refLink = d.refLink;
   });
+}
+
+function copyRef(){
+  navigator.clipboard.writeText(refLink);
+  alert("Copied!");
 }
 
 function sendPromo(){
@@ -252,32 +272,23 @@ bot.start((ctx)=>{
   ctx.reply("🔥 Pv App",{
     reply_markup:{
       inline_keyboard:[[
-        { text:"OPEN APP", web_app:{ url:process.env.WEBAPP_URL+"?ref="+id } }
+        {text:"OPEN APP", web_app:{url:process.env.WEBAPP_URL+"?ref="+id}}
       ]]
     }
   });
 });
 
-/* ================= ADMIN ================= */
-function isAdmin(ctx){
-  return ctx.from.id === 1642108682;
-}
-
-bot.command("users",(ctx)=>{
-  if(!isAdmin(ctx)) return;
-
-  db.all("SELECT * FROM users ORDER BY coins DESC",(e,r)=>{
-    ctx.reply(r.map(u=>`${u.id} | ${u.coins}`).join("\n"));
-  });
-});
-
+/* ================= GIVE (ONLY YOU) ================= */
 bot.command("give",(ctx)=>{
-  if(!isAdmin(ctx)) return;
+  if(ctx.from.id !== ADMIN_ID) return;
 
-  const [,id,amt]=ctx.message.text.split(" ");
+  const [,id,amt] = ctx.message.text.split(" ");
 
-  db.run("UPDATE users SET coins = coins + ? WHERE id=?",
-  [amt,id],()=>ctx.reply("done"));
+  db.run(
+    "UPDATE users SET coins = coins + ? WHERE id = ?",
+    [amt,id],
+    ()=>ctx.reply("done")
+  );
 });
 
 bot.launch();
