@@ -8,7 +8,7 @@ const app = express();
 
 app.use(express.json());
 
-const PROVIDER_TOKEN = process.env.PROVIDER_TOKEN;
+const ADMIN_ID = 1642108682;
 
 /* ================= DB ================= */
 const db = new sqlite3.Database(path.join(__dirname, "data.db"));
@@ -36,21 +36,18 @@ function getUser(id, cb){
   });
 }
 
-/* ================= TAP VALUE ================= */
+/* ================= TAP ================= */
 function getTapValue(user){
-  // VIP має пріоритет
   if(user.vip==="gold") return 20;
   if(user.vip==="silver") return 5;
   if(user.vip==="bronze") return 1;
 
-  // скіни
   if(user.skin==="coin") return 0.05;
   if(user.skin==="fire") return 0.02;
 
   return 0.01;
 }
 
-/* ================= TAP ================= */
 app.post("/tap",(req,res)=>{
   const id = req.body.id;
 
@@ -122,23 +119,7 @@ app.post("/buy-skin",(req,res)=>{
   }
 });
 
-/* ================= CREATE PAYMENT ================= */
-app.post("/create-payment",(req,res)=>{
-  let amount = Number(req.body.amount);
-
-  if(!amount || amount < 1) return res.json({error:"invalid"});
-
-  bot.telegram.createInvoiceLink({
-    title:"💎 Diamonds",
-    description: amount+"💎",
-    payload:"diamonds_"+amount,
-    provider_token:PROVIDER_TOKEN,
-    currency:"UAH",
-    prices:[{label:"Diamonds",amount:amount*100}]
-  }).then(link=>res.json({link}));
-});
-
-/* ================= WEB ================= */
+/* ================= WEB APP ================= */
 app.get("/",(req,res)=>{
 res.send(`
 <!DOCTYPE html>
@@ -197,27 +178,20 @@ button,input{
 
 <body>
 
-<!-- COINS -->
 <div id="home" class="page active">
   <h2 id="coins">0 PV</h2>
   <h3 id="diamonds">0 💎</h3>
   <div class="tap" onclick="tap()">TAP</div>
 </div>
 
-<!-- PROFILE -->
 <div id="profile" class="page">
   <h3 id="pid"></h3>
   <h3 id="pcoins"></h3>
   <h3 id="pdiamonds"></h3>
 </div>
 
-<!-- MARKET -->
 <div id="market" class="page">
   <h2>Market</h2>
-
-  <h3>Buy Diamonds</h3>
-  <input id="amount" placeholder="скільки 💎">
-  <button onclick="payCustom()">Buy</button>
 
   <h3>VIP</h3>
   <button onclick="buyVip('bronze')">Bronze 5💎</button>
@@ -229,7 +203,6 @@ button,input{
   <button onclick="buySkin('fire')">🔥 15 PV</button>
 </div>
 
-<!-- MENU -->
 <div class="menu">
   <div onclick="openPage('home')">Coins</div>
   <div onclick="openPage('profile')">Profile</div>
@@ -275,20 +248,6 @@ function loadProfile(){
   });
 }
 
-function payCustom(){
-  let amount = document.getElementById("amount").value;
-
-  fetch("/create-payment",{method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({amount})
-  })
-  .then(r=>r.json())
-  .then(d=>{
-    if(d.link) tg.openInvoice(d.link);
-    else alert("error");
-  });
-}
-
 function buyVip(type){
   fetch("/buy-vip",{method:"POST",
     headers:{"Content-Type":"application/json"},
@@ -313,33 +272,104 @@ function buySkin(type){
 `);
 });
 
-/* ================= PAYMENT ================= */
-bot.on("pre_checkout_query",(ctx)=>{
-  ctx.answerPreCheckoutQuery(true);
-});
+/* ================= DONATE FLOW ================= */
+const donateState = {};
 
-bot.on("successful_payment",(ctx)=>{
-  const id = ctx.from.id;
-  const payload = ctx.message.successful_payment.invoice_payload;
-
-  const amount = Number(payload.split("_")[1]);
-
-  db.run(
-    "UPDATE users SET diamonds = diamonds + ? WHERE id=?",
-    [amount,id]
-  );
-
-  ctx.reply("💎 +" + amount);
-});
-
-/* ================= START ================= */
 bot.start((ctx)=>{
   ctx.reply("🔥 Pv App",{
     reply_markup:{
-      inline_keyboard:[[
-        {text:"OPEN APP", web_app:{url:process.env.WEBAPP_URL}}
-      ]]
+      inline_keyboard:[
+        [
+          {text:"OPEN APP", web_app:{url:process.env.WEBAPP_URL}},
+          {text:"Donate", callback_data:"donate"}
+        ]
+      ]
     }
+  });
+});
+
+bot.action("donate",(ctx)=>{
+  donateState[ctx.from.id] = true;
+  ctx.reply("💎 Яку кількість кристалів ви бажаєте купити?");
+});
+
+bot.on("text",(ctx)=>{
+  const id = ctx.from.id;
+
+  if(donateState[id]){
+    const amount = Number(ctx.message.text);
+
+    if(!amount || amount <= 0){
+      return ctx.reply("Введи число");
+    }
+
+    donateState[id] = false;
+
+    ctx.reply(
+`💳 Оплата:
+5355 2800 2890 2177
+
+Сума: ${amount} грн
+
+(1💎 = 1 грн)
+
+Після переказу обов'язково скинь квитанцію в підтримку`
+    );
+  }
+});
+
+/* ================= ADMIN ================= */
+function isAdmin(id){
+  return id === ADMIN_ID;
+}
+
+bot.command("give",(ctx)=>{
+  if(!isAdmin(ctx.from.id)) return;
+
+  const [,id,amt] = ctx.message.text.split(" ");
+
+  db.run("UPDATE users SET coins = coins + ? WHERE id=?",[amt,id],
+  ()=>ctx.reply("done"));
+});
+
+bot.command("take",(ctx)=>{
+  if(!isAdmin(ctx.from.id)) return;
+
+  const [,id,amt] = ctx.message.text.split(" ");
+
+  db.run("UPDATE users SET coins = coins - ? WHERE id=?",[amt,id],
+  ()=>ctx.reply("done"));
+});
+
+bot.command("gived",(ctx)=>{
+  if(!isAdmin(ctx.from.id)) return;
+
+  const [,id,amt] = ctx.message.text.split(" ");
+
+  db.run("UPDATE users SET diamonds = diamonds + ? WHERE id=?",[amt,id],
+  ()=>ctx.reply("done"));
+});
+
+bot.command("taked",(ctx)=>{
+  if(!isAdmin(ctx.from.id)) return;
+
+  const [,id,amt] = ctx.message.text.split(" ");
+
+  db.run("UPDATE users SET diamonds = diamonds - ? WHERE id=?",[amt,id],
+  ()=>ctx.reply("done"));
+});
+
+bot.command("users",(ctx)=>{
+  if(!isAdmin(ctx.from.id)) return;
+
+  db.all("SELECT * FROM users ORDER BY coins DESC",[],(e,rows)=>{
+    let text="👥 USERS\n\n";
+
+    rows.forEach((u,i)=>{
+      text+=\`\${i+1}. \${u.id} | \${u.coins} PV | \${u.diamonds}💎\n\`;
+    });
+
+    ctx.reply(text);
   });
 });
 
