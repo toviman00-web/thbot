@@ -8,6 +8,7 @@ const app = express();
 
 app.use(express.json());
 
+/* ================= ADMIN ================= */
 const ADMIN_ID = 1642108682;
 
 /* ================= DB ================= */
@@ -22,46 +23,37 @@ db.serialize(() => {
   `);
 });
 
-/* ================= HELPERS ================= */
+/* ================= USER ================= */
 function getUser(id, cb){
   db.get("SELECT * FROM users WHERE id = ?", [id], (err, row) => {
     if(row) return cb(row);
 
-    db.run("INSERT INTO users (id, coins) VALUES (?, 0)", [id], () => {
-      cb({ id, coins: 0 });
-    });
+    db.run(
+      "INSERT INTO users (id, coins) VALUES (?, 0)",
+      [id],
+      () => cb({ id, coins: 0 })
+    );
   });
 }
 
-function addCoins(id, amount, notify = false){
+/* ================= ADD COINS ================= */
+function addCoins(id, amount, cb){
   db.run(
     "UPDATE users SET coins = coins + ? WHERE id = ?",
     [amount, id],
-    () => {
-      if(notify){
-        bot.telegram.sendMessage(
-          id,
-          `💎 Вам нараховано +${amount} PV`
-        ).catch(()=>{});
-      }
-    }
+    () => getUser(id, cb)
   );
 }
 
-/* ================= API ================= */
+/* ================= TAP ================= */
 app.post("/tap", (req, res) => {
   const id = req.body.id;
   if(!id) return res.json({ error: "no id" });
 
-  db.run(
-    "UPDATE users SET coins = coins + 0.01 WHERE id = ?",
-    [id],
-    () => {
-      getUser(id, user => res.json(user));
-    }
-  );
+  addCoins(id, 0.01, user => res.json(user));
 });
 
+/* ================= PROFILE ================= */
 app.post("/profile", (req, res) => {
   const id = req.body.id;
   getUser(id, user => res.json(user));
@@ -81,73 +73,59 @@ body{
   margin:0;
   font-family:Arial;
   color:white;
-  background:linear-gradient(135deg,#4facfe,#003c8f);
+  background:linear-gradient(135deg,#1e3c72,#2a5298);
   text-align:center;
 }
 
-/* TOP BALANCE */
-#coins{
-  font-size:32px;
-  margin-top:20px;
-  font-weight:bold;
-}
+.page{display:none;}
+.active{display:block;}
 
-/* TAP BUTTON */
-.tap{
-  width:160px;
-  height:160px;
-  margin:40px auto;
-  border-radius:50%;
-  background:linear-gradient(135deg,#ffffff,#cce6ff);
-  color:#003c8f;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  font-size:22px;
-  font-weight:bold;
-  box-shadow:0 10px 30px rgba(0,0,0,0.3);
-  transition:0.2s;
-}
-
-.tap:active{
-  transform:scale(0.9);
-}
-
-/* MENU */
 .menu{
   position:fixed;
   bottom:0;
   width:100%;
   display:flex;
   justify-content:space-around;
-  background:rgba(0,0,50,0.7);
+  background:rgba(0,0,0,0.3);
   padding:10px;
-  backdrop-filter: blur(10px);
 }
 
 .menu div{
-  padding:10px 14px;
-  border-radius:12px;
+  padding:10px;
   background:rgba(255,255,255,0.15);
-  cursor:pointer;
+  border-radius:12px;
 }
 
-/* PAGES */
-.page{display:none;}
-.active{display:block;}
+.tap{
+  width:160px;
+  height:160px;
+  margin:40px auto;
+  border-radius:50%;
+  background:white;
+  color:#1e3c72;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:22px;
+  font-weight:bold;
+}
+
+.tap:active{
+  transform:scale(0.95);
+}
 </style>
 </head>
 
 <body>
 
 <div id="home" class="page active">
-  <div id="coins">0 PV</div>
+  <h2 id="coins">0 PV</h2>
   <div class="tap" onclick="tap()">TAP</div>
 </div>
 
 <div id="profile" class="page">
-  <h2 id="pid"></h2>
-  <h2 id="pcoins"></h2>
+  <h3 id="pid"></h3>
+  <h3 id="pcoins"></h3>
 </div>
 
 <div id="earn" class="page">
@@ -183,7 +161,6 @@ function openPage(p){
   if(p==="profile") loadProfile();
 }
 
-/* TAP */
 function tap(){
   fetch("/tap", {
     method:"POST",
@@ -197,7 +174,6 @@ function tap(){
   });
 }
 
-/* PROFILE */
 function loadProfile(){
   fetch("/profile", {
     method:"POST",
@@ -217,9 +193,67 @@ function loadProfile(){
   `);
 });
 
-/* ================= ADMIN GIVE ================= */
+/* ================= BOT ================= */
+bot.start((ctx) => {
+  ctx.reply("🔥 Pv App", {
+    reply_markup: {
+      inline_keyboard: [[
+        {
+          text: "OPEN APP",
+          web_app: { url: process.env.WEBAPP_URL }
+        }
+      ]]
+    }
+  });
+});
+
+/* ================= ADMIN COMMANDS ================= */
+function isAdmin(ctx){
+  return ctx.from.id === ADMIN_ID;
+}
+
+/* /users */
+bot.command("users", (ctx) => {
+  if(!isAdmin(ctx)) return;
+
+  db.all("SELECT * FROM users ORDER BY coins DESC", [], (err, rows) => {
+    let text = "👥 USERS\n\n";
+
+    rows.forEach(u => {
+      text += `ID: ${u.id} | ${u.coins.toFixed(2)} PV\n`;
+    });
+
+    ctx.reply(text || "No users");
+  });
+});
+
+/* /stats id */
+bot.command("stats", (ctx) => {
+  if(!isAdmin(ctx)) return;
+
+  const id = ctx.message.text.split(" ")[1];
+
+  if(!id) return ctx.reply("Use: /stats id");
+
+  db.get("SELECT * FROM users WHERE id = ?", [id], (err, u) => {
+    if(!u) return ctx.reply("User not found");
+
+    ctx.reply(`📊 STATS
+ID: ${u.id}
+Coins: ${u.coins.toFixed(2)} PV`);
+  });
+});
+
+/* /admin */
+bot.command("admin", (ctx) => {
+  if(!isAdmin(ctx)) return;
+
+  ctx.reply("🛠 ADMIN PANEL\n\nCommands:\n/users\n/stats id\n/give id amount");
+});
+
+/* /give */
 bot.command("give", (ctx) => {
-  if(ctx.from.id !== ADMIN_ID) return;
+  if(!isAdmin(ctx)) return;
 
   const parts = ctx.message.text.split(" ");
   const id = parseInt(parts[1]);
@@ -232,23 +266,17 @@ bot.command("give", (ctx) => {
   db.get("SELECT * FROM users WHERE id = ?", [id], (err, user) => {
     if(!user) return ctx.reply("User not found");
 
-    addCoins(id, amount, true);
-
-    ctx.reply(`✅ Added ${amount} PV to ${id}`);
+    db.run(
+      "UPDATE users SET coins = coins + ? WHERE id = ?",
+      [amount, id],
+      () => {
+        ctx.reply(`✅ Added ${amount} PV to ${id}`);
+      }
+    );
   });
 });
 
-/* ================= BOT ================= */
-bot.start((ctx) => {
-  ctx.reply("🔥 Pv App", {
-    reply_markup: {
-      inline_keyboard: [[
-        { text: "OPEN APP", web_app: { url: process.env.WEBAPP_URL } }
-      ]]
-    }
-  });
-});
-
+bot.telegram.deleteWebhook();
 bot.launch();
 
 /* ================= SERVER ================= */
