@@ -297,3 +297,24 @@ bot.launch();
 app.listen(process.env.PORT||3000,()=>{
   console.log("Server started");
 });
+bot.command("users", (ctx) => {
+  if (ctx.from.id !== 1642108682) return;
+
+  db.all(
+    "SELECT * FROM users ORDER BY coins DESC",
+    [],
+    (err, rows) => {
+      if (!rows || rows.length === 0) {
+        return ctx.reply("No users");
+      }
+
+      let text = "👥 USERS LIST\n\n";
+
+      rows.forEach((u, i) => {
+        text += `${i + 1}. ID: ${u.id} | ${Number(u.coins).toFixed(2)} PV\n`;
+      });
+
+      ctx.reply(text);
+    }
+  );
+});
