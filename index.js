@@ -13,26 +13,24 @@ const ADMIN_ID = 1642108682;
 /* ================= DB ================= */
 const db = new sqlite3.Database(path.join(__dirname, "data.db"));
 
-db.run(`
-CREATE TABLE IF NOT EXISTS users(
-  id INTEGER PRIMARY KEY,
-  coins REAL DEFAULT 0,
-  diamonds INTEGER DEFAULT 0,
-  vip TEXT DEFAULT 'none',
-  skin TEXT DEFAULT 'default'
-)
-`);
+db.run(
+"CREATE TABLE IF NOT EXISTS users(" +
+"id INTEGER PRIMARY KEY," +
+"coins REAL DEFAULT 0," +
+"diamonds INTEGER DEFAULT 0," +
+"vip TEXT DEFAULT 'none'," +
+"skin TEXT DEFAULT 'default'" +
+")"
+);
 
 /* ================= USER ================= */
 function getUser(id, cb){
   db.get("SELECT * FROM users WHERE id=?", [id], (e,row)=>{
     if(row) return cb(row);
 
-    db.run(
-      "INSERT INTO users (id) VALUES (?)",
-      [id],
-      ()=>cb({id,coins:0,diamonds:0,vip:"none",skin:"default"})
-    );
+    db.run("INSERT INTO users (id) VALUES (?)",[id],()=>{
+      cb({id:id,coins:0,diamonds:0,vip:"none",skin:"default"});
+    });
   });
 }
 
@@ -72,7 +70,8 @@ app.post("/profile",(req,res)=>{
 
 /* ================= BUY VIP ================= */
 app.post("/buy-vip",(req,res)=>{
-  const {id,type} = req.body;
+  const id = req.body.id;
+  const type = req.body.type;
 
   const prices = { bronze:5, silver:10, gold:20 };
 
@@ -91,7 +90,8 @@ app.post("/buy-vip",(req,res)=>{
 
 /* ================= BUY SKIN ================= */
 app.post("/buy-skin",(req,res)=>{
-  const {id,type} = req.body;
+  const id = req.body.id;
+  const type = req.body.type;
 
   if(type==="fire"){
     getUser(id,user=>{
@@ -119,7 +119,7 @@ app.post("/buy-skin",(req,res)=>{
   }
 });
 
-/* ================= WEB APP ================= */
+/* ================= WEB ================= */
 app.get("/",(req,res)=>{
 res.send(`
 <!DOCTYPE html>
@@ -129,49 +129,23 @@ res.send(`
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
 <style>
-body{
-  margin:0;
-  font-family:Arial;
-  background:#1e3c72;
-  color:white;
-  text-align:center;
-}
-
+body{margin:0;font-family:Arial;background:#1e3c72;color:white;text-align:center;}
 .page{display:none;}
 .active{display:block;}
-
 .tap{
-  width:150px;height:150px;
-  background:white;
-  color:#1e3c72;
-  border-radius:50%;
-  margin:40px auto;
-  display:flex;
-  align-items:center;
-  justify-content:center;
+width:150px;height:150px;background:white;color:#1e3c72;
+border-radius:50%;margin:40px auto;display:flex;
+align-items:center;justify-content:center;font-size:20px;
 }
-
 .menu{
-  position:fixed;
-  bottom:0;
-  width:100%;
-  display:flex;
-  justify-content:space-around;
-  background:rgba(0,0,0,0.3);
-  padding:10px;
+position:fixed;bottom:0;width:100%;display:flex;
+justify-content:space-around;background:rgba(0,0,0,0.3);padding:10px;
 }
-
 .menu div{
-  background:rgba(255,255,255,0.15);
-  padding:10px;
-  border-radius:10px;
+background:rgba(255,255,255,0.15);padding:10px;border-radius:10px;
 }
-
-button,input{
-  padding:10px;
-  border:none;
-  border-radius:10px;
-  margin:5px;
+button{
+padding:10px;border:none;border-radius:10px;margin:5px;
 }
 </style>
 </head>
@@ -272,7 +246,7 @@ function buySkin(type){
 `);
 });
 
-/* ================= DONATE FLOW ================= */
+/* ================= DONATE ================= */
 const donateState = {};
 
 bot.start((ctx)=>{
@@ -306,67 +280,58 @@ bot.on("text",(ctx)=>{
     donateState[id] = false;
 
     ctx.reply(
-`💳 Оплата:
-5355 2800 2890 2177
-
-Сума: ${amount} грн
-
-(1💎 = 1 грн)
-
-Після переказу обов'язково скинь квитанцію в підтримку`
+"💳 Оплата:\n" +
+"5355 2800 2890 2177\n\n" +
+"Сума: " + amount + " грн\n\n" +
+"(1💎 = 1 грн)\n\n" +
+"Після переказу обов'язково скинь квитанцію в підтримку"
     );
   }
 });
 
 /* ================= ADMIN ================= */
 function isAdmin(id){
-  return id === ADMIN_ID;
+  return Number(id) === ADMIN_ID;
 }
 
 bot.command("give",(ctx)=>{
   if(!isAdmin(ctx.from.id)) return;
 
-  const [,id,amt] = ctx.message.text.split(" ");
+  const p = ctx.message.text.split(" ");
+  const id = Number(p[1]);
+  const amt = Number(p[2]);
 
-  db.run("UPDATE users SET coins = coins + ? WHERE id=?",[amt,id],
-  ()=>ctx.reply("done"));
-});
-
-bot.command("take",(ctx)=>{
-  if(!isAdmin(ctx.from.id)) return;
-
-  const [,id,amt] = ctx.message.text.split(" ");
-
-  db.run("UPDATE users SET coins = coins - ? WHERE id=?",[amt,id],
-  ()=>ctx.reply("done"));
+  getUser(id, ()=>{
+    db.run("UPDATE users SET coins=coins+? WHERE id=?",[amt,id],()=>{
+      ctx.reply("done");
+      bot.telegram.sendMessage(id,"✅ +" + amt + " PV");
+    });
+  });
 });
 
 bot.command("gived",(ctx)=>{
   if(!isAdmin(ctx.from.id)) return;
 
-  const [,id,amt] = ctx.message.text.split(" ");
+  const p = ctx.message.text.split(" ");
+  const id = Number(p[1]);
+  const amt = Number(p[2]);
 
-  db.run("UPDATE users SET diamonds = diamonds + ? WHERE id=?",[amt,id],
-  ()=>ctx.reply("done"));
-});
-
-bot.command("taked",(ctx)=>{
-  if(!isAdmin(ctx.from.id)) return;
-
-  const [,id,amt] = ctx.message.text.split(" ");
-
-  db.run("UPDATE users SET diamonds = diamonds - ? WHERE id=?",[amt,id],
-  ()=>ctx.reply("done"));
+  getUser(id, ()=>{
+    db.run("UPDATE users SET diamonds=diamonds+? WHERE id=?",[amt,id],()=>{
+      ctx.reply("💎кристали надіслано💎");
+      bot.telegram.sendMessage(id,"✅ +" + amt + "💎");
+    });
+  });
 });
 
 bot.command("users",(ctx)=>{
   if(!isAdmin(ctx.from.id)) return;
 
-  db.all("SELECT * FROM users ORDER BY coins DESC",[],(e,rows)=>{
-    let text = "👥 USERS\n\n";
+  db.all("SELECT * FROM users",[],(e,rows)=>{
+    let text="👥 USERS\n\n";
 
     rows.forEach((u,i)=>{
-      text += (i + 1) + ". " + u.id + " | " + u.coins + " PV | " + u.diamonds + "💎\n";
+      text += (i+1)+". "+u.id+" | "+u.coins+" PV | "+u.diamonds+"💎\n";
     });
 
     ctx.reply(text);
