@@ -18,7 +18,8 @@ CREATE TABLE IF NOT EXISTS users(
   id INTEGER PRIMARY KEY,
   coins REAL DEFAULT 0,
   diamonds INTEGER DEFAULT 0,
-  vip TEXT DEFAULT 'none'
+  vip TEXT DEFAULT 'none',
+  skin TEXT DEFAULT 'default'
 )
 `);
 
@@ -30,19 +31,26 @@ function getUser(id, cb){
     db.run(
       "INSERT INTO users (id) VALUES (?)",
       [id],
-      ()=>cb({id,coins:0,diamonds:0,vip:"none"})
+      ()=>cb({id,coins:0,diamonds:0,vip:"none",skin:"default"})
     );
   });
 }
 
-/* ================= TAP ================= */
+/* ================= TAP VALUE ================= */
 function getTapValue(user){
+  // VIP має пріоритет
   if(user.vip==="gold") return 20;
   if(user.vip==="silver") return 5;
   if(user.vip==="bronze") return 1;
+
+  // скіни
+  if(user.skin==="coin") return 0.05;
+  if(user.skin==="fire") return 0.02;
+
   return 0.01;
 }
 
+/* ================= TAP ================= */
 app.post("/tap",(req,res)=>{
   const id = req.body.id;
 
@@ -69,11 +77,7 @@ app.post("/profile",(req,res)=>{
 app.post("/buy-vip",(req,res)=>{
   const {id,type} = req.body;
 
-  const prices = {
-    bronze:5,
-    silver:10,
-    gold:20
-  };
+  const prices = { bronze:5, silver:10, gold:20 };
 
   getUser(id,user=>{
     if(user.diamonds < prices[type]){
@@ -81,16 +85,48 @@ app.post("/buy-vip",(req,res)=>{
     }
 
     db.run(
-      "UPDATE users SET diamonds = diamonds - ?, vip=? WHERE id=?",
+      "UPDATE users SET diamonds=diamonds-?, vip=? WHERE id=?",
       [prices[type],type,id],
       ()=>res.json({ok:true})
     );
   });
 });
 
+/* ================= BUY SKIN ================= */
+app.post("/buy-skin",(req,res)=>{
+  const {id,type} = req.body;
+
+  if(type==="fire"){
+    getUser(id,user=>{
+      if(user.coins < 15) return res.json({error:"no pv"});
+
+      db.run(
+        "UPDATE users SET coins=coins-15, skin='fire' WHERE id=?",
+        [id],
+        ()=>res.json({ok:true})
+      );
+    });
+    return;
+  }
+
+  if(type==="coin"){
+    getUser(id,user=>{
+      if(user.coins < 20) return res.json({error:"no pv"});
+
+      db.run(
+        "UPDATE users SET coins=coins-20, skin='coin' WHERE id=?",
+        [id],
+        ()=>res.json({ok:true})
+      );
+    });
+  }
+});
+
 /* ================= CREATE PAYMENT ================= */
 app.post("/create-payment",(req,res)=>{
-  const amount = req.body.amount; // 10,20,50
+  let amount = Number(req.body.amount);
+
+  if(!amount || amount < 1) return res.json({error:"invalid"});
 
   bot.telegram.createInvoiceLink({
     title:"💎 Diamonds",
@@ -150,7 +186,7 @@ body{
   border-radius:10px;
 }
 
-button{
+button,input{
   padding:10px;
   border:none;
   border-radius:10px;
@@ -180,14 +216,17 @@ button{
   <h2>Market</h2>
 
   <h3>Buy Diamonds</h3>
-  <button onclick="pay(10)">10💎</button>
-  <button onclick="pay(20)">20💎</button>
-  <button onclick="pay(50)">50💎</button>
+  <input id="amount" placeholder="скільки 💎">
+  <button onclick="payCustom()">Buy</button>
 
   <h3>VIP</h3>
   <button onclick="buyVip('bronze')">Bronze 5💎</button>
   <button onclick="buyVip('silver')">Silver 10💎</button>
   <button onclick="buyVip('gold')">Gold 20💎</button>
+
+  <h3>Skins</h3>
+  <button onclick="buySkin('coin')">🪙 20 PV</button>
+  <button onclick="buySkin('fire')">🔥 15 PV</button>
 </div>
 
 <!-- MENU -->
@@ -236,17 +275,31 @@ function loadProfile(){
   });
 }
 
-function pay(amount){
+function payCustom(){
+  let amount = document.getElementById("amount").value;
+
   fetch("/create-payment",{method:"POST",
     headers:{"Content-Type":"application/json"},
     body:JSON.stringify({amount})
   })
   .then(r=>r.json())
-  .then(d=>tg.openInvoice(d.link));
+  .then(d=>{
+    if(d.link) tg.openInvoice(d.link);
+    else alert("error");
+  });
 }
 
 function buyVip(type){
   fetch("/buy-vip",{method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({id:id(),type:type})
+  })
+  .then(r=>r.json())
+  .then(d=>alert(JSON.stringify(d)));
+}
+
+function buySkin(type){
+  fetch("/buy-skin",{method:"POST",
     headers:{"Content-Type":"application/json"},
     body:JSON.stringify({id:id(),type:type})
   })
@@ -260,7 +313,7 @@ function buyVip(type){
 `);
 });
 
-/* ================= PAYMENT SUCCESS ================= */
+/* ================= PAYMENT ================= */
 bot.on("pre_checkout_query",(ctx)=>{
   ctx.answerPreCheckoutQuery(true);
 });
