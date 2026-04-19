@@ -8,7 +8,6 @@ const app = express();
 
 app.use(express.json());
 
-/* ================= ADMIN ================= */
 const ADMIN_ID = 1642108682;
 
 /* ================= DB ================= */
@@ -30,7 +29,7 @@ function getUser(id, cb){
     if(row) return cb(row);
 
     db.run(
-      "INSERT INTO users (id, coins) VALUES (?, 0)",
+      "INSERT OR IGNORE INTO users (id, coins) VALUES (?, 0)",
       [id],
       () => cb({ id, coins: 0, used_promo: "" })
     );
@@ -74,36 +73,6 @@ app.post("/profile", (req,res)=>{
   });
 });
 
-/* ================= PROMO ================= */
-app.post("/promo", (req,res)=>{
-  const {id, code} = req.body;
-
-  getUser(id, user=>{
-
-    if(user.used_promo.includes(code)){
-      return res.json({error:"already used"});
-    }
-
-    let reward = 0;
-
-    if(code === "open") reward = 50;
-    if(code === "1may") reward = 10;
-
-    if(!reward){
-      return res.json({error:"invalid"});
-    }
-
-    db.run(
-      "UPDATE users SET coins = coins + ?, used_promo = used_promo || ? WHERE id = ?",
-      [reward, code+",", id],
-      ()=>{
-        addCoins(id, reward, true);
-        res.json({ok:true, reward});
-      }
-    );
-  });
-});
-
 /* ================= WEB APP ================= */
 app.get("/", (req,res)=>{
   res.send(`
@@ -117,17 +86,19 @@ app.get("/", (req,res)=>{
 body{
   margin:0;
   font-family:Arial;
+  background:#1e3c72;
   color:white;
-  background:#1e3c72; /* ОДИН СИНІЙ БЕЗ ПЛИТОК */
   text-align:center;
 }
 
+/* PAGES */
 .page{display:none;}
 .active{display:block;}
 
+/* TAP */
 .tap{
-  width:160px;
-  height:160px;
+  width:150px;
+  height:150px;
   margin:40px auto;
   border-radius:50%;
   background:white;
@@ -136,12 +107,9 @@ body{
   align-items:center;
   justify-content:center;
   font-weight:bold;
-  font-size:20px;
-  transition:0.1s;
 }
 
-.tap:active{transform:scale(0.92);}
-
+/* MENU */
 .menu{
   position:fixed;
   bottom:0;
@@ -158,18 +126,34 @@ body{
   border-radius:10px;
 }
 
-input,button{
-  padding:10px;
+/* MARKET */
+.market-grid{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:10px;
+  padding:20px;
+}
+
+.item{
+  height:120px;
+  background:rgba(255,255,255,0.15);
+  border-radius:12px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-weight:bold;
+}
+
+.small{
+  opacity:0.6;
   margin-top:10px;
-  border:none;
-  border-radius:10px;
 }
 </style>
 </head>
 
 <body>
 
-<!-- HOME -->
+<!-- COINS -->
 <div id="home" class="page active">
   <h2 id="coins">0 PV</h2>
   <div class="tap" onclick="tap()">TAP</div>
@@ -179,33 +163,33 @@ input,button{
 <div id="profile" class="page">
   <h3 id="pid"></h3>
   <h3 id="pcoins"></h3>
-
-  <button onclick="copyRef()">📋 Copy referral</button>
-
-  <div style="margin-top:15px;">
-    <input id="code" placeholder="promo code">
-    <button onclick="sendPromo()">Apply</button>
-  </div>
 </div>
 
-<!-- EARN -->
-<div id="earn" class="page">
-  <h2>Earn</h2>
-  <p>Tasks coming soon 📊</p>
+<!-- MARKET -->
+<div id="market" class="page">
+  <h2>Market</h2>
+
+  <div class="market-grid">
+    <div class="item">Skin 1</div>
+    <div class="item">Skin 2</div>
+    <div class="item">Skin 3</div>
+    <div class="item">Skin 4</div>
+  </div>
+
+  <div class="small">Coming Soon</div>
 </div>
 
 <!-- MENU -->
 <div class="menu">
-  <div onclick="openPage('home')">Home</div>
+  <div onclick="openPage('home')">Coins</div>
   <div onclick="openPage('profile')">Profile</div>
-  <div onclick="openPage('earn')">Earn</div>
+  <div onclick="openPage('market')">Market</div>
 </div>
 
 <script>
 const tg = window.Telegram.WebApp;
-tg.ready(); tg.expand();
-
-let refLink = "";
+tg.ready();
+tg.expand();
 
 function id(){
   return tg.initDataUnsafe?.user?.id;
@@ -225,7 +209,8 @@ function tap(){
   })
   .then(r=>r.json())
   .then(d=>{
-    document.getElementById("coins").innerText = d.coins.toFixed(2)+" PV";
+    document.getElementById("coins").innerText =
+      d.coins.toFixed(2)+" PV";
   });
 }
 
@@ -238,25 +223,7 @@ function loadProfile(){
   .then(d=>{
     document.getElementById("pid").innerText="ID: "+d.id;
     document.getElementById("pcoins").innerText="Balance: "+d.coins.toFixed(2);
-    refLink = d.refLink;
   });
-}
-
-function copyRef(){
-  navigator.clipboard.writeText(refLink);
-  alert("Copied!");
-}
-
-function sendPromo(){
-  fetch("/promo",{method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({
-      id:id(),
-      code:document.getElementById("code").value
-    })
-  })
-  .then(r=>r.json())
-  .then(d=>alert(JSON.stringify(d)));
 }
 </script>
 
@@ -278,43 +245,9 @@ bot.start((ctx)=>{
   });
 });
 
-/* ================= GIVE (ONLY YOU) ================= */
-bot.command("give",(ctx)=>{
-  if(ctx.from.id !== ADMIN_ID) return;
-
-  const [,id,amt] = ctx.message.text.split(" ");
-
-  db.run(
-    "UPDATE users SET coins = coins + ? WHERE id = ?",
-    [amt,id],
-    ()=>ctx.reply("done")
-  );
-});
-
 bot.launch();
 
 /* ================= SERVER ================= */
 app.listen(process.env.PORT||3000,()=>{
   console.log("Server started");
-});
-bot.command("users", (ctx) => {
-  if (ctx.from.id !== 1642108682) return;
-
-  db.all(
-    "SELECT * FROM users ORDER BY coins DESC",
-    [],
-    (err, rows) => {
-      if (!rows || rows.length === 0) {
-        return ctx.reply("No users");
-      }
-
-      let text = "👥 USERS LIST\n\n";
-
-      rows.forEach((u, i) => {
-        text += `${i + 1}. ID: ${u.id} | ${Number(u.coins).toFixed(2)} PV\n`;
-      });
-
-      ctx.reply(text);
-    }
-  );
 });
