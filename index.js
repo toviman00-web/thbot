@@ -363,10 +363,10 @@ bot.command("users",(ctx)=>{
   if(!isAdmin(ctx.from.id)) return;
 
   db.all("SELECT * FROM users ORDER BY coins DESC",[],(e,rows)=>{
-    let text="👥 USERS\n\n";
+    let text = "👥 USERS\n\n";
 
     rows.forEach((u,i)=>{
-      text+=\`\${i+1}. \${u.id} | \${u.coins} PV | \${u.diamonds}💎\n\`;
+      text += (i + 1) + ". " + u.id + " | " + u.coins + " PV | " + u.diamonds + "💎\n";
     });
 
     ctx.reply(text);
