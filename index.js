@@ -8,6 +8,9 @@ const app = express();
 
 app.use(express.json());
 
+/* ================= ADMIN ================= */
+const ADMIN_ID = 1642108682;
+
 /* ================= DB ================= */
 const db = new sqlite3.Database(path.join(__dirname, "data.db"));
 
@@ -210,93 +213,11 @@ function loadProfile(){
     document.getElementById("pcoins").innerText = "Balance: " + d.coins.toFixed(2);
   });
 }
-
-/* REF */
-const ref = new URLSearchParams(window.location.search).get("ref");
-
-if(ref){
-  fetch("/ref", {
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body: JSON.stringify({
-      id: id(),
-      ref: ref
-    })
-  });
-}
 </script>
 
 </body>
 </html>
   `);
-});
-
-/* ================= ADMIN WEB ================= */
-const ADMIN_ID = 1642108682;
-app.get("/admin", (req, res) => {
-  res.send(`
-<!DOCTYPE html>
-<html>
-<body style="background:#111;color:white;font-family:Arial">
-
-<h2>ADMIN PANEL</h2>
-
-<input id="uid" placeholder="user id">
-<input id="amt" placeholder="amount">
-<button onclick="give()">GIVE</button>
-
-<h3>Users</h3>
-<div id="list"></div>
-
-<script>
-async function load(){
-  let res = await fetch("/admin-users");
-  let data = await res.json();
-
-  document.getElementById("list").innerHTML =
-    data.map(u => \`ID: \${u.id} | \${u.coins}\`).join("<br>");
-}
-
-async function give(){
-  await fetch("/admin-give", {
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body: JSON.stringify({
-      id: uid.value,
-      amount: amt.value
-    })
-  });
-
-  load();
-}
-
-load();
-</script>
-
-</body>
-</html>
-  `);
-});
-
-/* ================= ADMIN API ================= */
-app.get("/admin-users", (req, res) => {
-  db.all("SELECT * FROM users", [], (err, rows) => {
-    res.json(rows);
-  });
-});
-
-app.post("/admin-give", (req, res) => {
-  const { id, amount } = req.body;
-
-  db.get("SELECT * FROM users WHERE id = ?", [id], (err, user) => {
-    if(!user) return res.json({ error:"no user" });
-
-    db.run(
-      "UPDATE users SET coins = coins + ? WHERE id = ?",
-      [amount, id],
-      () => res.json({ ok:true })
-    );
-  });
 });
 
 /* ================= BOT ================= */
@@ -313,6 +234,50 @@ bot.start((ctx) => {
   });
 });
 
+/* ================= ADMIN COMMANDS ================= */
+bot.command("users", (ctx) => {
+  if(ctx.from.id !== ADMIN_ID) return;
+
+  db.all("SELECT * FROM users ORDER BY coins DESC", [], (err, rows) => {
+    let text = "👥 USERS\n\n";
+
+    rows.forEach(u => {
+      text += `ID: ${u.id} | ${u.coins} PV\n`;
+    });
+
+    ctx.reply(text);
+  });
+});
+
+bot.command("give", (ctx) => {
+  if(ctx.from.id !== ADMIN_ID) return;
+
+  const parts = ctx.message.text.split(" ");
+  const id = parseInt(parts[1]);
+  const amount = parseFloat(parts[2]);
+
+  if(!id || !amount){
+    return ctx.reply("Use: /give id amount");
+  }
+
+  db.get("SELECT * FROM users WHERE id = ?", [id], (err, user) => {
+    if(!user){
+      return ctx.reply("❌ User not found");
+    }
+
+    db.run(
+      "UPDATE users SET coins = coins + ? WHERE id = ?",
+      [amount, id],
+      () => {
+        db.get("SELECT coins FROM users WHERE id = ?", [id], (err, u) => {
+          ctx.reply(`✅ Done\nID: ${id}\n+${amount} PV\nBalance: ${u.coins}`);
+        });
+      }
+    );
+  });
+});
+
+bot.telegram.deleteWebhook();
 bot.launch();
 
 /* ================= SERVER ================= */
