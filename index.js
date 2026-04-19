@@ -3,7 +3,7 @@ const express = require("express");
 const sqlite3 = require("sqlite3").verbose();
 const path = require("path");
 
-const bot = new Telegraf(process.env.8750192272:AAEV20ZeZBj88fEfc9K9_wSh_nErYXErTRY);
+const bot = new Telegraf("8750192272:AAEV20ZeZBj88fEfc9K9_wSh_nErYXErTRY");
 const app = express();
 
 app.use(express.json());
