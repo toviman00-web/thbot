@@ -18,7 +18,8 @@ db.serialize(() => {
   db.run(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY,
-      coins REAL DEFAULT 0
+      coins REAL DEFAULT 0,
+      used_promo TEXT DEFAULT ''
     )
   `);
 });
@@ -28,20 +29,22 @@ function getUser(id, cb){
   db.get("SELECT * FROM users WHERE id = ?", [id], (err, row) => {
     if(row) return cb(row);
 
-    db.run(
-      "INSERT INTO users (id, coins) VALUES (?, 0)",
-      [id],
-      () => cb({ id, coins: 0 })
-    );
+    db.run("INSERT INTO users (id, coins) VALUES (?, 0)", [id], () => {
+      cb({ id, coins: 0, used_promo: "" });
+    });
   });
 }
 
 /* ================= ADD COINS ================= */
-function addCoins(id, amount, cb){
+function addCoins(id, amount, notify = false){
   db.run(
     "UPDATE users SET coins = coins + ? WHERE id = ?",
     [amount, id],
-    () => getUser(id, cb)
+    () => {
+      if(notify){
+        bot.telegram.sendMessage(id, `💎 +${amount} PV`).catch(()=>{});
+      }
+    }
   );
 }
 
@@ -50,13 +53,51 @@ app.post("/tap", (req, res) => {
   const id = req.body.id;
   if(!id) return res.json({ error: "no id" });
 
-  addCoins(id, 0.01, user => res.json(user));
+  db.run(
+    "UPDATE users SET coins = coins + 0.01 WHERE id = ?",
+    [id],
+    () => getUser(id, user => res.json(user))
+  );
 });
 
 /* ================= PROFILE ================= */
 app.post("/profile", (req, res) => {
   const id = req.body.id;
-  getUser(id, user => res.json(user));
+
+  getUser(id, user => {
+    const refLink = `https://t.me/YOUR_BOT?start=${id}`;
+    res.json({ ...user, refLink });
+  });
+});
+
+/* ================= PROMO ================= */
+app.post("/promo", (req, res) => {
+  const { id, code } = req.body;
+
+  getUser(id, user => {
+
+    if(user.used_promo?.includes(code)){
+      return res.json({ error: "already used" });
+    }
+
+    let reward = 0;
+
+    if(code === "open") reward = 50;
+    if(code === "1may") reward = 10;
+
+    if(reward === 0){
+      return res.json({ error: "invalid" });
+    }
+
+    db.run(
+      "UPDATE users SET coins = coins + ?, used_promo = used_promo || ? WHERE id = ?",
+      [reward, code + ",", id],
+      () => {
+        addCoins(id, reward, true);
+        res.json({ ok: true, reward });
+      }
+    );
+  });
 });
 
 /* ================= WEB APP ================= */
@@ -80,22 +121,6 @@ body{
 .page{display:none;}
 .active{display:block;}
 
-.menu{
-  position:fixed;
-  bottom:0;
-  width:100%;
-  display:flex;
-  justify-content:space-around;
-  background:rgba(0,0,0,0.3);
-  padding:10px;
-}
-
-.menu div{
-  padding:10px;
-  background:rgba(255,255,255,0.15);
-  border-radius:12px;
-}
-
 .tap{
   width:160px;
   height:160px;
@@ -108,10 +133,26 @@ body{
   justify-content:center;
   font-size:22px;
   font-weight:bold;
+  transition:0.15s;
 }
 
-.tap:active{
-  transform:scale(0.95);
+.tap:active{transform:scale(0.92);}
+
+input{
+  padding:10px;
+  border-radius:10px;
+  border:none;
+  margin-top:10px;
+}
+
+button{
+  padding:10px 15px;
+  margin-top:10px;
+  border:none;
+  border-radius:10px;
+  background:white;
+  color:#1e3c72;
+  font-weight:bold;
 }
 </style>
 </head>
@@ -126,23 +167,13 @@ body{
 <div id="profile" class="page">
   <h3 id="pid"></h3>
   <h3 id="pcoins"></h3>
+  <p id="ref"></p>
 </div>
 
-<div id="earn" class="page">
-  <h2>Earn</h2>
-  <p>Pvlane📊</p>
-</div>
-
-<div id="market" class="page">
-  <h2>Market</h2>
-  <p>Coming soon</p>
-</div>
-
-<div class="menu">
-  <div onclick="openPage('home')">Home</div>
-  <div onclick="openPage('profile')">Profile</div>
-  <div onclick="openPage('market')">Market</div>
-  <div onclick="openPage('earn')">Earn</div>
+<div id="promo" class="page">
+  <h2>Promo code</h2>
+  <input id="code" placeholder="enter code">
+  <button onclick="sendPromo()">Apply</button>
 </div>
 
 <script>
@@ -154,7 +185,7 @@ function id(){
   return tg.initDataUnsafe?.user?.id;
 }
 
-function openPage(p){
+function open(p){
   document.querySelectorAll(".page").forEach(e=>e.classList.remove("active"));
   document.getElementById(p).classList.add("active");
 
@@ -184,6 +215,20 @@ function loadProfile(){
   .then(d=>{
     document.getElementById("pid").innerText = "ID: " + d.id;
     document.getElementById("pcoins").innerText = "Balance: " + d.coins.toFixed(2);
+    document.getElementById("ref").innerText = "Ref: " + d.refLink;
+  });
+}
+
+function sendPromo(){
+  fetch("/promo", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({
+      id: id(),
+      code: document.getElementById("code").value
+    })
+  }).then(r=>r.json()).then(d=>{
+    alert(JSON.stringify(d));
   });
 }
 </script>
@@ -195,12 +240,14 @@ function loadProfile(){
 
 /* ================= BOT ================= */
 bot.start((ctx) => {
+  const id = ctx.from.id;
+
   ctx.reply("🔥 Pv App", {
     reply_markup: {
       inline_keyboard: [[
         {
           text: "OPEN APP",
-          web_app: { url: process.env.WEBAPP_URL }
+          web_app: { url: process.env.WEBAPP_URL + "?ref=" + id }
         }
       ]]
     }
@@ -208,75 +255,18 @@ bot.start((ctx) => {
 });
 
 /* ================= ADMIN COMMANDS ================= */
-function isAdmin(ctx){
-  return ctx.from.id === ADMIN_ID;
-}
-
-/* /users */
-bot.command("users", (ctx) => {
-  if(!isAdmin(ctx)) return;
-
-  db.all("SELECT * FROM users ORDER BY coins DESC", [], (err, rows) => {
-    let text = "👥 USERS\n\n";
-
-    rows.forEach(u => {
-      text += `ID: ${u.id} | ${u.coins.toFixed(2)} PV\n`;
-    });
-
-    ctx.reply(text || "No users");
-  });
-});
-
-/* /stats id */
-bot.command("stats", (ctx) => {
-  if(!isAdmin(ctx)) return;
-
-  const id = ctx.message.text.split(" ")[1];
-
-  if(!id) return ctx.reply("Use: /stats id");
-
-  db.get("SELECT * FROM users WHERE id = ?", [id], (err, u) => {
-    if(!u) return ctx.reply("User not found");
-
-    ctx.reply(`📊 STATS
-ID: ${u.id}
-Coins: ${u.coins.toFixed(2)} PV`);
-  });
-});
-
-/* /admin */
-bot.command("admin", (ctx) => {
-  if(!isAdmin(ctx)) return;
-
-  ctx.reply("🛠 ADMIN PANEL\n\nCommands:\n/users\n/stats id\n/give id amount");
-});
-
-/* /give */
 bot.command("give", (ctx) => {
-  if(!isAdmin(ctx)) return;
+  if(ctx.from.id !== ADMIN_ID) return;
 
-  const parts = ctx.message.text.split(" ");
-  const id = parseInt(parts[1]);
-  const amount = parseFloat(parts[2]);
+  const [_, id, amount] = ctx.message.text.split(" ");
 
-  if(!id || !amount){
-    return ctx.reply("Use: /give id amount");
-  }
-
-  db.get("SELECT * FROM users WHERE id = ?", [id], (err, user) => {
-    if(!user) return ctx.reply("User not found");
-
-    db.run(
-      "UPDATE users SET coins = coins + ? WHERE id = ?",
-      [amount, id],
-      () => {
-        ctx.reply(`✅ Added ${amount} PV to ${id}`);
-      }
-    );
-  });
+  db.run(
+    "UPDATE users SET coins = coins + ? WHERE id = ?",
+    [amount, id],
+    () => ctx.reply("done")
+  );
 });
 
-bot.telegram.deleteWebhook();
 bot.launch();
 
 /* ================= SERVER ================= */
